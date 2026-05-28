@@ -4,6 +4,7 @@ export const PI_DEV_OAUTH_PROVIDER_ID = "pi.dev";
 export const PI_DEV_OFFLINE_ACCESS_SCOPE = "offline_access";
 export const PI_DEV_SESSION_SHARE_SCOPE = "session_share";
 export const PI_DEV_ACTIVITY_SYNC_SCOPE = "activity_sync";
+export const PI_DEV_PROFILE_SCOPES = [PI_DEV_ACTIVITY_SYNC_SCOPE, PI_DEV_SESSION_SHARE_SCOPE] as const;
 
 export function normalizePiDevBaseUrl(baseUrl: string): string {
 	return baseUrl.replace(/\/+$/, "");

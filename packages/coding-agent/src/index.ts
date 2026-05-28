@@ -236,6 +236,7 @@ export {
 	type RetrySettings,
 	SettingsManager,
 	type SettingsManagerCreateOptions,
+	type TelemetrySettings,
 } from "./core/settings-manager.ts";
 // Skills
 export {

@@ -4,7 +4,9 @@
 
 ### Added
 
-- Added pi.dev account integration for unlisted session sharing and activity sync.
+- Added first-run onboarding with pi.dev profiles and analytics/crash-reporting consent.
+- Added pi.dev account integration for unlisted session sharing and background activity sync, enabled automatically after pi.dev profile setup.
+- Added an activity sync toggle to `/settings`.
 - Added project trust gating for project-local settings, resources, instructions, and packages ([#5332](https://github.com/earendil-works/pi/pull/5332)).
 - Added the latest prompt cache hit rate to the interactive footer.
 

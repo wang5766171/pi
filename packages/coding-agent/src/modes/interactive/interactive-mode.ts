@@ -87,7 +87,7 @@ import {
 	formatPiDevShareSuccess,
 	getPiDevAuth,
 	loginPiDev,
-	PI_DEV_ACTIVITY_SYNC_SCOPE,
+	PI_DEV_PROFILE_SCOPES,
 	PI_DEV_SESSION_SHARE_SCOPE,
 	parseShareCommand,
 	type ShareCommandMode,
@@ -97,6 +97,7 @@ import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-nam
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
 import { type SessionContext, SessionManager } from "../../core/session-manager.ts";
+import { hasPendingSetupSteps } from "../../core/setup-state.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
@@ -140,6 +141,7 @@ import { TreeSelectorComponent } from "./components/tree-selector.ts";
 import { TrustSelectorComponent } from "./components/trust-selector.ts";
 import { UserMessageComponent } from "./components/user-message.ts";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.ts";
+import { runSetupWizard, type SetupWizardResult } from "./setup-wizard.ts";
 import {
 	getAvailableThemes,
 	getAvailableThemesWithPaths,
@@ -273,6 +275,8 @@ export interface InteractiveModeOptions {
 	initialMessages?: string[];
 	/** Force verbose startup (overrides quietStartup setting) */
 	verbose?: boolean;
+	/** Run first-time setup when needed */
+	runSetup?: boolean;
 }
 
 export class InteractiveMode {
@@ -281,6 +285,7 @@ export class InteractiveMode {
 	private chatContainer: Container;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
+	private setupContainer: Container;
 	private defaultEditor: CustomEditor;
 	private editor: EditorComponent;
 	private editorComponentFactory: EditorFactory | undefined;
@@ -414,6 +419,7 @@ export class InteractiveMode {
 		this.chatContainer = new Container();
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
+		this.setupContainer = new Container();
 		this.widgetContainerAbove = new Container();
 		this.widgetContainerBelow = new Container();
 		this.keybindings = KeybindingsManager.create();
@@ -612,14 +618,6 @@ export class InteractiveMode {
 
 		this.registerSignalHandlers();
 
-		// Load changelog (only show new entries, skip for resumed sessions)
-		this.changelogMarkdown = this.getChangelogForDisplay();
-
-		// Ensure fd and rg are available (downloads if missing, adds to PATH via getBinDir)
-		// Both are needed: fd for autocomplete, rg for grep tool and bash commands
-		const [fdPath] = await Promise.all([ensureTool("fd"), ensureTool("rg")]);
-		this.fdPath = fdPath;
-
 		if (this.session.scopedModels.length > 0 && (this.options.verbose || !this.settingsManager.getQuietStartup())) {
 			const modelList = this.session.scopedModels
 				.map((sm) => {
@@ -712,22 +710,32 @@ export class InteractiveMode {
 		this.setupKeyHandlers();
 		this.setupEditorSubmitHandler();
 
-		// Start the UI before initializing extensions so session_start handlers can use interactive dialogs
+		// Start the UI before setup and extension initialization so both can use interactive dialogs.
 		this.ui.start();
 		this.isInitialized = true;
+
+		// Set up theme file watcher before setup so setup UI uses the active theme consistently.
+		onThemeChange(() => {
+			this.ui.invalidate();
+			this.updateEditorBorderColor();
+			this.ui.requestRender();
+		});
+
+		await this.runInitialSetupIfNeeded();
+
+		// Load changelog after setup so install telemetry respects setup consent.
+		this.changelogMarkdown = this.getChangelogForDisplay();
+
+		// Ensure fd and rg are available (downloads if missing, adds to PATH via getBinDir)
+		// Both are needed: fd for autocomplete, rg for grep tool and bash commands
+		const [fdPath] = await Promise.all([ensureTool("fd"), ensureTool("rg")]);
+		this.fdPath = fdPath;
 
 		// Initialize extensions first so resources are shown before messages
 		await this.rebindCurrentSession();
 
 		// Render initial messages AFTER showing loaded resources
 		this.renderInitialMessages();
-
-		// Set up theme file watcher
-		onThemeChange(() => {
-			this.ui.invalidate();
-			this.updateEditorBorderColor();
-			this.ui.requestRender();
-		});
 
 		// Set up git branch watcher (uses provider instead of footer)
 		this.footerDataProvider.onBranchChange(() => {
@@ -793,7 +801,9 @@ export class InteractiveMode {
 			this.showError(`models.json error: ${modelsJsonError}`);
 		}
 
-		if (modelFallbackMessage) {
+		const staleNoModelsWarning =
+			modelFallbackMessage?.startsWith("No models available.") === true && !isUnknownModel(this.session.model);
+		if (modelFallbackMessage && !staleNoModelsWarning) {
 			this.showWarning(modelFallbackMessage);
 		}
 
@@ -974,6 +984,73 @@ export class InteractiveMode {
 			...getMarkdownTheme(),
 			codeBlockIndent: this.settingsManager.getCodeBlockIndent(),
 		};
+	}
+
+	private shouldRunInitialSetup(): boolean {
+		return (
+			this.options.runSetup !== false &&
+			process.stdin.isTTY === true &&
+			process.stdout.isTTY === true &&
+			hasPendingSetupSteps(getAgentDir())
+		);
+	}
+
+	private async runInitialSetupIfNeeded(): Promise<void> {
+		if (!this.shouldRunInitialSetup()) {
+			return;
+		}
+		await this.runInitialSetup();
+	}
+
+	private hideInputAreaForSetup(): () => void {
+		const footerComponent = this.customFooter ?? this.footer;
+		const components: Component[] = [
+			this.widgetContainerAbove,
+			this.editorContainer,
+			this.widgetContainerBelow,
+			footerComponent,
+		];
+		for (const component of components) {
+			this.ui.removeChild(component);
+		}
+		this.ui.requestRender();
+		return () => {
+			for (const component of components) {
+				if (!this.ui.children.includes(component)) {
+					this.ui.addChild(component);
+				}
+			}
+			this.ui.requestRender();
+		};
+	}
+
+	private async runInitialSetup(): Promise<void> {
+		const restoreInputArea = this.hideInputAreaForSetup();
+		let result: SetupWizardResult | undefined;
+		try {
+			result = await runSetupWizard({
+				tui: this.ui,
+				settingsManager: this.settingsManager,
+				agentDir: getAgentDir(),
+				mode: "automatic",
+				container: this.setupContainer,
+				mount: {
+					parent: this.ui,
+					before: this.widgetContainerAbove,
+				},
+				focusAfter: this.editor as Component,
+			});
+		} finally {
+			restoreInputArea();
+		}
+		if (result?.profileRequested) {
+			const accessToken = await this.connectPiDevProfile({ title: "Create pi.dev profile" });
+			this.showStatus(
+				accessToken
+					? "Setup complete. pi.dev profile connected; activity sync enabled."
+					: "Setup complete. pi.dev profile setup skipped.",
+			);
+		}
 	}
 
 	// =========================================================================
@@ -1419,7 +1496,9 @@ export class InteractiveMode {
 		if (showListing) {
 			const contextFiles = this.session.resourceLoader.getAgentsFiles().agentsFiles;
 			if (contextFiles.length > 0) {
-				this.chatContainer.addChild(new Spacer(1));
+				if (this.chatContainer.children.length > 0) {
+					this.chatContainer.addChild(new Spacer(1));
+				}
 				const contextList = contextFiles
 					.map((f) => theme.fg("dim", `  ${this.formatDisplayPath(f.path)}`))
 					.join("\n");
@@ -4008,6 +4087,7 @@ export class InteractiveMode {
 					hideThinkingBlock: this.hideThinkingBlock,
 					collapseChangelog: this.settingsManager.getCollapseChangelog(),
 					enableInstallTelemetry: this.settingsManager.getEnableInstallTelemetry(),
+					activitySyncEnabled: this.settingsManager.getActivitySyncSettings().enabled,
 					doubleEscapeAction: this.settingsManager.getDoubleEscapeAction(),
 					treeFilterMode: this.settingsManager.getTreeFilterMode(),
 					showHardwareCursor: this.settingsManager.getShowHardwareCursor(),
@@ -4100,6 +4180,9 @@ export class InteractiveMode {
 					},
 					onEnableInstallTelemetryChange: (enabled) => {
 						this.settingsManager.setEnableInstallTelemetry(enabled);
+					},
+					onActivitySyncChange: (enabled) => {
+						void this.handleActivitySyncSettingsChange(enabled);
 					},
 					onQuietStartupChange: (enabled) => {
 						this.settingsManager.setQuietStartup(enabled);
@@ -4700,6 +4783,16 @@ export class InteractiveMode {
 		});
 	}
 
+	private async authenticateLoginProvider(providerOption: AuthSelectorProvider): Promise<void> {
+		if (providerOption.authType === "oauth") {
+			await this.showLoginDialog(providerOption.id, providerOption.name);
+		} else if (providerOption.id === BEDROCK_PROVIDER_ID) {
+			await this.showBedrockSetupDialog(providerOption.id, providerOption.name);
+		} else {
+			await this.showApiKeyLoginDialog(providerOption.id, providerOption.name);
+		}
+	}
+
 	private showLoginProviderSelector(authType: "oauth" | "api_key"): void {
 		const providerOptions = this.getLoginProviderOptions(authType);
 		if (providerOptions.length === 0) {
@@ -4714,7 +4807,7 @@ export class InteractiveMode {
 				"login",
 				this.session.modelRegistry.authStorage,
 				providerOptions,
-				async (providerId: string) => {
+				(providerId: string) => {
 					done();
 
 					const providerOption = providerOptions.find((provider) => provider.id === providerId);
@@ -4722,13 +4815,7 @@ export class InteractiveMode {
 						return;
 					}
 
-					if (providerOption.authType === "oauth") {
-						await this.showLoginDialog(providerOption.id, providerOption.name);
-					} else if (providerOption.id === BEDROCK_PROVIDER_ID) {
-						this.showBedrockSetupDialog(providerOption.id, providerOption.name);
-					} else {
-						await this.showApiKeyLoginDialog(providerOption.id, providerOption.name);
-					}
+					void this.authenticateLoginProvider(providerOption);
 				},
 				() => {
 					done();
@@ -4842,32 +4929,35 @@ export class InteractiveMode {
 		}
 	}
 
-	private showBedrockSetupDialog(providerId: string, providerName: string): void {
-		const restoreEditor = () => {
+	private showBedrockSetupDialog(providerId: string, providerName: string): Promise<void> {
+		return new Promise((resolve) => {
+			const restoreEditor = () => {
+				this.editorContainer.clear();
+				this.editorContainer.addChild(this.editor);
+				this.ui.setFocus(this.editor);
+				this.ui.requestRender();
+				resolve();
+			};
+
+			const dialog = new LoginDialogComponent(
+				this.ui,
+				providerId,
+				() => restoreEditor(),
+				providerName,
+				"Amazon Bedrock setup",
+			);
+			dialog.showInfo([
+				theme.fg("text", "Amazon Bedrock uses AWS credentials instead of a single API key."),
+				theme.fg("text", "Configure an AWS profile, IAM keys, bearer token, or role-based credentials."),
+				theme.fg("muted", "See:"),
+				theme.fg("accent", `  ${path.join(getDocsPath(), "providers.md")}`),
+			]);
+
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.ui.setFocus(this.editor);
+			this.editorContainer.addChild(dialog);
+			this.ui.setFocus(dialog);
 			this.ui.requestRender();
-		};
-
-		const dialog = new LoginDialogComponent(
-			this.ui,
-			providerId,
-			() => restoreEditor(),
-			providerName,
-			"Amazon Bedrock setup",
-		);
-		dialog.showInfo([
-			theme.fg("text", "Amazon Bedrock uses AWS credentials instead of a single API key."),
-			theme.fg("text", "Configure an AWS profile, IAM keys, bearer token, or role-based credentials."),
-			theme.fg("muted", "See:"),
-			theme.fg("accent", `  ${path.join(getDocsPath(), "providers.md")}`),
-		]);
-
-		this.editorContainer.clear();
-		this.editorContainer.addChild(dialog);
-		this.ui.setFocus(dialog);
-		this.ui.requestRender();
+		});
 	}
 
 	private async showApiKeyLoginDialog(providerId: string, providerName: string): Promise<void> {
@@ -5235,7 +5325,7 @@ export class InteractiveMode {
 		}
 
 		const accessToken = await this.ensurePiDevAuthenticated([PI_DEV_SESSION_SHARE_SCOPE], {
-			title: "Login to pi.dev for session sharing",
+			title: "Create pi.dev profile to share sessions",
 		});
 		if (!accessToken) {
 			this.showStatus("Share cancelled");
@@ -5255,6 +5345,23 @@ export class InteractiveMode {
 		}
 
 		return this.showPiDevLoginDialog(requiredScopes, options);
+	}
+
+	private async connectPiDevProfile(options: { title: string; forceLogin?: boolean }): Promise<string | undefined> {
+		const deviceId = getStableActivitySyncDeviceId(this.settingsManager);
+		await this.settingsManager.flush();
+		const accessToken = await this.ensurePiDevAuthenticated(PI_DEV_PROFILE_SCOPES, {
+			title: options.title,
+			deviceId,
+			forceLogin: options.forceLogin,
+		});
+		if (!accessToken) {
+			return undefined;
+		}
+
+		this.settingsManager.setActivitySyncEnabled(true);
+		await this.settingsManager.flush();
+		return accessToken;
 	}
 
 	private async showPiDevLoginDialog(
@@ -5553,12 +5660,29 @@ export class InteractiveMode {
 			return;
 		}
 		if (!(await this.ensureActivitySyncAuthenticated())) return;
-		this.settingsManager.setActivitySyncEnabled(true);
-		await this.settingsManager.flush();
 		const result = await this.runActivitySyncNow();
 		if (result.status === "not_authenticated" && (await this.ensureActivitySyncAuthenticated(true))) {
 			await this.runActivitySyncNow();
 		}
+	}
+
+	private async handleActivitySyncSettingsChange(enabled: boolean): Promise<void> {
+		if (!enabled) {
+			this.settingsManager.setActivitySyncEnabled(false);
+			await this.settingsManager.flush();
+			this.showStatus("Activity sync disabled");
+			return;
+		}
+
+		const accessToken = await this.connectPiDevProfile({ title: "Create pi.dev profile for activity sync" });
+		if (!accessToken) {
+			this.settingsManager.setActivitySyncEnabled(false);
+			await this.settingsManager.flush();
+			this.showStatus("Activity sync unchanged");
+			return;
+		}
+		this.showStatus("Activity sync enabled");
+		this.maybeRunBackgroundActivitySync();
 	}
 
 	private formatActivitySyncWatermark(watermark: string | null | undefined): string {
@@ -5600,15 +5724,12 @@ export class InteractiveMode {
 	}
 
 	private async ensureActivitySyncAuthenticated(forceLogin = false): Promise<boolean> {
-		const deviceId = getStableActivitySyncDeviceId(this.settingsManager);
-		await this.settingsManager.flush();
-		const accessToken = await this.ensurePiDevAuthenticated([PI_DEV_ACTIVITY_SYNC_SCOPE], {
-			title: "Login to pi.dev for activity sync",
-			deviceId,
+		const accessToken = await this.connectPiDevProfile({
+			title: "Create pi.dev profile for activity sync",
 			forceLogin,
 		});
 		if (!accessToken) return false;
-		this.showStatus("Activity sync login complete");
+		this.showStatus("pi.dev profile connected. Activity sync enabled.");
 		return true;
 	}
 

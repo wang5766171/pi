@@ -38,7 +38,7 @@ Type `/` in the editor to open command completion. Extensions can register custo
 | `/login`, `/logout` | Manage OAuth or API-key credentials |
 | `/model` | Switch models |
 | `/scoped-models` | Enable/disable models for Ctrl+P cycling |
-| `/settings` | Thinking level, theme, message delivery, transport |
+| `/settings` | Thinking level, theme, message delivery, transport, activity sync |
 | `/resume` | Pick from previous sessions |
 | `/new` | Start a new session |
 | `/name <name>` | Set session display name |
@@ -50,7 +50,6 @@ Type `/` in the editor to open command completion. Extensions can register custo
 | `/copy` | Copy last assistant message to clipboard |
 | `/export [file]` | Export session to HTML |
 | `/share [pi.dev\|github]` | Share session via pi.dev, or GitHub gist with `/share github` |
-| `/activity-sync` | Log in to pi.dev and sync session activity analytics |
 | `/reload` | Reload keybindings, extensions, skills, prompts, and context files |
 | `/hotkeys` | Show all keyboard shortcuts |
 | `/changelog` | Display version history |
@@ -125,13 +124,13 @@ Use `/trust` in interactive mode to save a project trust decision for future ses
 
 Use `/export [file]` to write a session to HTML.
 
-Use `/share` to upload the current session HTML to pi.dev as an unlisted share. Pi prompts for a pi.dev login when needed. Anyone with the returned link can view the shared session.
+Use `/share` to upload the current session HTML to pi.dev as an unlisted share. Pi prompts you to create or sign in to a pi.dev profile when needed. Anyone with the returned link can view the shared session.
 
 Use `/share github` to create a GitHub gist with the `gh` CLI and return a share-viewer URL. `PI_SHARE_VIEWER_URL` controls the viewer base URL for GitHub gist shares.
 
 ### Activity Sync
 
-Run `/activity-sync` in interactive mode to log in to pi.dev and opt into background sync.
+Creating or signing in to a pi.dev profile during setup enables background activity sync. `/share` signs in only to store shared sessions and does not change activity sync. Disable sync from `/settings` or by setting `piDev.activitySync.enabled` to `false`.
 
 Activity sync uploads session activity analytics metadata to pi.dev, including session and entry metadata, model IDs, token/cost usage, and content block counts. It omits raw message content, tool arguments, thinking text, error text, labels, names, and custom data.
 
@@ -296,7 +295,7 @@ pi --exclude-tools ask_question
 | `PI_CODING_AGENT_DIR` | Override config directory; default is `~/.pi/agent` |
 | `PI_CODING_AGENT_SESSION_DIR` | Override session storage directory; overridden by `--session-dir` |
 | `PI_PACKAGE_DIR` | Override package directory, useful for Nix/Guix store paths |
-| `PI_OFFLINE` | Disable startup network operations, including update checks, package update checks, and install/update telemetry |
+| `PI_OFFLINE` | Disable startup network operations, including update checks, package update checks, and telemetry |
 | `PI_SKIP_VERSION_CHECK` | Skip the Pi version update check at startup. This prevents the `pi.dev` latest-version request |
 | `PI_TELEMETRY` | Override install/update telemetry and provider attribution headers: `1`/`true`/`yes` or `0`/`false`/`no`. This does not disable update checks |
 | `PI_DEV_URL` | Base URL for pi.dev API calls; default is `https://pi.dev` |
