@@ -123,17 +123,20 @@ import { TreeSelectorComponent } from "./components/tree-selector.ts";
 import { UserMessageComponent } from "./components/user-message.ts";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.ts";
 import {
+	detectTerminalBackgroundFromEnv,
 	getAvailableThemes,
 	getAvailableThemesWithPaths,
 	getEditorTheme,
 	getMarkdownTheme,
 	getThemeByName,
+	getThemeForRgbColor,
 	initTheme,
 	onThemeChange,
 	setRegisteredThemes,
 	setTheme,
 	setThemeInstance,
 	stopThemeWatcher,
+	type TerminalThemeDetection,
 	Theme,
 	type ThemeColor,
 	theme,
@@ -421,6 +424,34 @@ export class InteractiveMode {
 		initTheme(this.settingsManager.getTheme(), true);
 	}
 
+	private async detectThemeIfUnset(): Promise<void> {
+		if (this.settingsManager.getTheme()) {
+			return;
+		}
+
+		const rgb = await this.ui.queryTerminalBackgroundColor({ timeoutMs: 100 });
+		const detection: TerminalThemeDetection = rgb
+			? {
+					theme: getThemeForRgbColor(rgb),
+					source: "terminal background",
+					detail: `OSC 11 background rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`,
+					confidence: "high",
+				}
+			: detectTerminalBackgroundFromEnv();
+		const result = setTheme(detection.theme, true);
+		if (!result.success) {
+			return;
+		}
+
+		if (detection.confidence === "high") {
+			this.settingsManager.setTheme(detection.theme);
+			await this.settingsManager.flush();
+		}
+		this.ui.invalidate();
+		this.updateEditorBorderColor();
+		this.ui.requestRender();
+	}
+
 	private getAutocompleteSourceTag(sourceInfo?: SourceInfo): string | undefined {
 		if (!sourceInfo) {
 			return undefined;
@@ -617,8 +648,27 @@ export class InteractiveMode {
 			console.log(theme.fg("dim", `Model scope: ${modelList}${cycleHint}`));
 		}
 
-		// Add header container as first child
+		// Add header container as first child. Populate it after detectThemeIfUnset.
 		this.ui.addChild(this.headerContainer);
+
+		this.ui.addChild(this.chatContainer);
+		this.ui.addChild(this.pendingMessagesContainer);
+		this.ui.addChild(this.statusContainer);
+		this.renderWidgets(); // Initialize with default spacer
+		this.ui.addChild(this.widgetContainerAbove);
+		this.ui.addChild(this.editorContainer);
+		this.ui.addChild(this.widgetContainerBelow);
+		this.ui.addChild(this.footer);
+		this.ui.setFocus(this.editor);
+
+		this.setupKeyHandlers();
+		this.setupEditorSubmitHandler();
+
+		// Start the UI before initializing extensions so session_start handlers can use interactive dialogs
+		this.ui.start();
+		this.isInitialized = true;
+
+		await this.detectThemeIfUnset();
 
 		// Add header with keybindings from config (unless silenced)
 		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
@@ -680,23 +730,7 @@ export class InteractiveMode {
 			this.builtInHeader = new Text("", 0, 0);
 			this.headerContainer.addChild(this.builtInHeader);
 		}
-
-		this.ui.addChild(this.chatContainer);
-		this.ui.addChild(this.pendingMessagesContainer);
-		this.ui.addChild(this.statusContainer);
-		this.renderWidgets(); // Initialize with default spacer
-		this.ui.addChild(this.widgetContainerAbove);
-		this.ui.addChild(this.editorContainer);
-		this.ui.addChild(this.widgetContainerBelow);
-		this.ui.addChild(this.footer);
-		this.ui.setFocus(this.editor);
-
-		this.setupKeyHandlers();
-		this.setupEditorSubmitHandler();
-
-		// Start the UI before initializing extensions so session_start handlers can use interactive dialogs
-		this.ui.start();
-		this.isInitialized = true;
+		this.ui.requestRender();
 
 		// Initialize extensions first so resources are shown before messages
 		await this.rebindCurrentSession();

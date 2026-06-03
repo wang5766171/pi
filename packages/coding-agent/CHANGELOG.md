@@ -15,6 +15,7 @@
 
 ### Added
 
+- Added first-run interactive theme detection from the terminal background.
 - Added containerization documentation and a Gondolin extension example for routing built-in tools into a local micro-VM.
 - Added Ant Ling provider selection and setup documentation.
 - Added MiniMax-M3 model support inherited from `@earendil-works/pi-ai` for the `minimax` and `minimax-cn` direct providers ([#5313](https://github.com/earendil-works/pi/issues/5313)).
