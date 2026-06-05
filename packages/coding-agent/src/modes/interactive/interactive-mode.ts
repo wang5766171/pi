@@ -59,6 +59,12 @@ import {
 	getShareViewerUrl,
 	VERSION,
 } from "../../config.ts";
+import {
+	type ActivitySyncResult,
+	getStableActivitySyncDeviceId,
+	loadActivitySyncState,
+	syncSessionAnalytics,
+} from "../../core/activity-sync/index.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { type AgentSessionRuntime, SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
 import type {
@@ -77,6 +83,16 @@ import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.t
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
 import { defaultModelPerProvider, findExactModelReferenceMatch, resolveModelScope } from "../../core/model-resolver.ts";
 import { DefaultPackageManager } from "../../core/package-manager.ts";
+import {
+	formatPiDevShareSuccess,
+	getPiDevAuth,
+	loginPiDev,
+	PI_DEV_ACTIVITY_SYNC_SCOPE,
+	PI_DEV_SESSION_SHARE_SCOPE,
+	parseShareCommand,
+	type ShareCommandMode,
+	uploadPiDevSessionShare,
+} from "../../core/pi-dev/index.ts";
 import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-names.ts";
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
@@ -517,7 +533,7 @@ export class InteractiveMode {
 		}));
 
 		// Convert extension commands to SlashCommand format
-		const builtinCommandNames = new Set(slashCommands.map((c) => c.name));
+		const builtinCommandNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
 		const extensionCommands: SlashCommand[] = this.session.extensionRunner
 			.getRegisteredCommands()
 			.filter((cmd) => !builtinCommandNames.has(cmd.name))
@@ -763,6 +779,8 @@ export class InteractiveMode {
 			}
 		});
 
+		this.maybeRunBackgroundActivitySync();
+
 		// Show startup warnings
 		const { migratedProviders, modelFallbackMessage, initialMessage, initialImages, initialMessages } = this.options;
 
@@ -908,6 +926,28 @@ export class InteractiveMode {
 		}
 
 		return undefined;
+	}
+
+	private maybeRunBackgroundActivitySync(): void {
+		const settings = this.settingsManager.getActivitySyncSettings();
+		if (!settings.enabled || process.env.PI_OFFLINE) return;
+
+		void loadActivitySyncState(getAgentDir())
+			.then((state) => {
+				const lastAttemptTime = state.lastAttemptAt ? new Date(state.lastAttemptAt).getTime() : 0;
+				if (
+					Number.isFinite(lastAttemptTime) &&
+					Date.now() - lastAttemptTime < settings.intervalHours * 60 * 60 * 1000
+				) {
+					return undefined;
+				}
+				return syncSessionAnalytics({
+					settingsManager: this.settingsManager,
+					authStorage: this.session.modelRegistry.authStorage,
+				});
+			})
+			.then(() => undefined)
+			.catch(() => undefined);
 	}
 
 	private reportInstallTelemetry(version: string): void {
@@ -1135,7 +1175,11 @@ export class InteractiveMode {
 		}
 
 		if (source === "cli") {
-			return { label: "path", scopeLabel: scope === "temporary" ? "temp" : undefined, color: "muted" };
+			return {
+				label: "path",
+				scopeLabel: scope === "temporary" ? "temp" : undefined,
+				color: "muted",
+			};
 		}
 
 		const scopeLabel =
@@ -1389,7 +1433,10 @@ export class InteractiveMode {
 			const skills = skillsResult.skills;
 			if (skills.length > 0) {
 				const groups = this.buildScopeGroups(
-					skills.map((skill) => ({ path: skill.filePath, sourceInfo: skill.sourceInfo })),
+					skills.map((skill) => ({
+						path: skill.filePath,
+						sourceInfo: skill.sourceInfo,
+					})),
 				);
 				const skillList = this.formatScopeGroups(groups, {
 					formatPath: (item) => this.formatDisplayPath(item.path),
@@ -1402,7 +1449,10 @@ export class InteractiveMode {
 			const templates = this.session.promptTemplates;
 			if (templates.length > 0) {
 				const groups = this.buildScopeGroups(
-					templates.map((template) => ({ path: template.filePath, sourceInfo: template.sourceInfo })),
+					templates.map((template) => ({
+						path: template.filePath,
+						sourceInfo: template.sourceInfo,
+					})),
 				);
 				const templateByPath = new Map(templates.map((t) => [t.filePath, t]));
 				const templateList = this.formatScopeGroups(groups, {
@@ -1475,7 +1525,11 @@ export class InteractiveMode {
 			const extensionErrors = this.session.resourceLoader.getExtensions().errors;
 			if (extensionErrors.length > 0) {
 				for (const error of extensionErrors) {
-					extensionDiagnostics.push({ type: "error", message: error.error, path: error.path });
+					extensionDiagnostics.push({
+						type: "error",
+						message: error.error,
+						path: error.path,
+					});
 				}
 			}
 
@@ -2079,7 +2133,11 @@ export class InteractiveMode {
 					this.hideExtensionSelector();
 					resolve(undefined);
 				},
-				{ tui: this.ui, timeout: opts?.timeout, onToggleToolsExpanded: () => this.toggleToolOutputExpansion() },
+				{
+					tui: this.ui,
+					timeout: opts?.timeout,
+					onToggleToolsExpanded: () => this.toggleToolOutputExpansion(),
+				},
 			);
 
 			this.editorContainer.clear();
@@ -2521,8 +2579,8 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
-			if (text === "/share") {
-				await this.handleShareCommand();
+			if (text === "/share" || text.startsWith("/share ")) {
+				await this.handleShareCommand(text);
 				this.editor.setText("");
 				return;
 			}
@@ -2539,6 +2597,11 @@ export class InteractiveMode {
 			if (text === "/session") {
 				this.handleSessionCommand();
 				this.editor.setText("");
+				return;
+			}
+			if (text === "/activity-sync" || text.startsWith("/activity-sync ")) {
+				this.editor.setText("");
+				await this.handleActivitySyncCommand(text);
 				return;
 			}
 			if (text === "/changelog") {
@@ -3201,7 +3264,10 @@ export class InteractiveMode {
 							} else {
 								errorMessage = message.errorMessage || "Error";
 							}
-							component.updateResult({ content: [{ type: "text", text: errorMessage }], isError: true });
+							component.updateResult({
+								content: [{ type: "text", text: errorMessage }],
+								isError: true,
+							});
 						} else {
 							renderedPendingTools.set(content.id, component);
 						}
@@ -4834,7 +4900,10 @@ export class InteractiveMode {
 				throw new Error("API key cannot be empty.");
 			}
 
-			this.session.modelRegistry.authStorage.set(providerId, { type: "api_key", key: apiKey });
+			this.session.modelRegistry.authStorage.set(providerId, {
+				type: "api_key",
+				key: apiKey,
+			});
 
 			restoreEditor();
 			await this.completeProviderAuthentication(providerId, providerName, "api_key", previousModel);
@@ -5153,10 +5222,167 @@ export class InteractiveMode {
 		}
 	}
 
-	private async handleShareCommand(): Promise<void> {
+	private async handleShareCommand(text: string): Promise<void> {
+		const parsed = parseShareCommand(text);
+		if (!parsed.ok) {
+			this.showError(parsed.message);
+			return;
+		}
+
+		if (parsed.mode === "github") {
+			await this.handleGitHubShareCommand();
+			return;
+		}
+
+		const accessToken = await this.ensurePiDevAuthenticated([PI_DEV_SESSION_SHARE_SCOPE], {
+			title: "Login to pi.dev for session sharing",
+		});
+		if (!accessToken) {
+			this.showStatus("Share cancelled");
+			return;
+		}
+
+		await this.handlePiDevShareCommand(accessToken, parsed.mode);
+	}
+
+	private async ensurePiDevAuthenticated(
+		requiredScopes: readonly string[],
+		options: { title: string; deviceId?: string; forceLogin?: boolean },
+	): Promise<string | undefined> {
+		if (!options.forceLogin) {
+			const auth = await getPiDevAuth(this.session.modelRegistry.authStorage, requiredScopes);
+			if (auth.available) return auth.accessToken;
+		}
+
+		return this.showPiDevLoginDialog(requiredScopes, options);
+	}
+
+	private async showPiDevLoginDialog(
+		requiredScopes: readonly string[],
+		options: { title: string; deviceId?: string },
+	): Promise<string | undefined> {
+		const dialog = new LoginDialogComponent(
+			this.ui,
+			"pi.dev",
+			(_success, _message) => {
+				// Completion handled below.
+			},
+			"pi.dev",
+			options.title,
+		);
+
+		const restoreEditor = () => {
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+			this.ui.requestRender();
+		};
+
+		this.editorContainer.clear();
+		this.editorContainer.addChild(dialog);
+		this.ui.setFocus(dialog);
+		this.ui.requestRender();
+
+		try {
+			const credential = await loginPiDev(this.session.modelRegistry.authStorage, {
+				scopes: requiredScopes,
+				deviceId: options.deviceId,
+				signal: dialog.signal,
+				onDeviceCode: (info) => {
+					dialog.showDeviceCode(info);
+					dialog.showWaiting("Waiting for authentication...");
+				},
+			});
+			restoreEditor();
+			return credential.access;
+		} catch (error: unknown) {
+			restoreEditor();
+			const message = error instanceof Error ? error.message : String(error);
+			if (message !== "Login cancelled") {
+				this.showError(`Failed to login to pi.dev: ${message}`);
+			}
+			return undefined;
+		}
+	}
+
+	private createShareHtmlTempPath(): string {
+		return path.join(os.tmpdir(), `pi-session-${crypto.randomUUID()}.html`);
+	}
+
+	private async exportShareHtml(tmpFile: string): Promise<number | undefined> {
+		try {
+			await this.session.exportToHtml(tmpFile);
+			const byteSize = fs.statSync(tmpFile).size;
+			if (byteSize <= 0) {
+				this.showError("Failed to export session: exported HTML is empty");
+				return undefined;
+			}
+			return byteSize;
+		} catch (error: unknown) {
+			this.showError(`Failed to export session: ${error instanceof Error ? error.message : "Unknown error"}`);
+			return undefined;
+		}
+	}
+
+	private async handlePiDevShareCommand(accessToken: string, mode: ShareCommandMode): Promise<void> {
+		const tmpFile = this.createShareHtmlTempPath();
+		const byteSize = await this.exportShareHtml(tmpFile);
+		if (byteSize === undefined) {
+			return;
+		}
+
+		const loader = new BorderedLoader(this.ui, theme, "Uploading to pi.dev...");
+		this.editorContainer.clear();
+		this.editorContainer.addChild(loader);
+		this.ui.setFocus(loader);
+		this.ui.requestRender();
+
+		const abortController = new AbortController();
+		const restoreEditor = () => {
+			loader.dispose();
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+			try {
+				fs.unlinkSync(tmpFile);
+			} catch {
+				// Ignore cleanup errors
+			}
+		};
+
+		loader.onAbort = () => {
+			abortController.abort();
+			restoreEditor();
+			this.showStatus("Share cancelled");
+		};
+
+		try {
+			const bytes = fs.readFileSync(tmpFile);
+			const result = await uploadPiDevSessionShare({
+				accessToken,
+				bytes,
+				byteSize,
+				signal: abortController.signal,
+			});
+			if (loader.signal.aborted) return;
+			restoreEditor();
+			this.showStatus(formatPiDevShareSuccess(result.url));
+		} catch (error: unknown) {
+			if (!loader.signal.aborted) {
+				restoreEditor();
+				const reason = error instanceof Error ? error.message : "Unknown error";
+				const suggestion = mode === "auto" ? "\nRun /share github to use the GitHub gist fallback." : "";
+				this.showError(`Failed to upload session to pi.dev: ${reason}${suggestion}`);
+			}
+		}
+	}
+
+	private async handleGitHubShareCommand(): Promise<void> {
 		// Check if gh is available and logged in
 		try {
-			const authResult = spawnSync("gh", ["auth", "status"], { encoding: "utf-8" });
+			const authResult = spawnSync("gh", ["auth", "status"], {
+				encoding: "utf-8",
+			});
 			if (authResult.status !== 0) {
 				this.showError("GitHub CLI is not logged in. Run 'gh auth login' first.");
 				return;
@@ -5167,11 +5393,9 @@ export class InteractiveMode {
 		}
 
 		// Export to a temp file
-		const tmpFile = path.join(os.tmpdir(), "session.html");
-		try {
-			await this.session.exportToHtml(tmpFile);
-		} catch (error: unknown) {
-			this.showError(`Failed to export session: ${error instanceof Error ? error.message : "Unknown error"}`);
+		const tmpFile = this.createShareHtmlTempPath();
+		const byteSize = await this.exportShareHtml(tmpFile);
+		if (byteSize === undefined) {
 			return;
 		}
 
@@ -5204,7 +5428,11 @@ export class InteractiveMode {
 		};
 
 		try {
-			const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve) => {
+			const result = await new Promise<{
+				stdout: string;
+				stderr: string;
+				code: number | null;
+			}>((resolve) => {
 				proc = spawn("gh", ["gist", "create", "--public=false", tmpFile]);
 				let stdout = "";
 				let stderr = "";
@@ -5317,6 +5545,71 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(info, 1, 0));
 		this.ui.requestRender();
+	}
+
+	private async handleActivitySyncCommand(text: string): Promise<void> {
+		if (text !== "/activity-sync") {
+			this.showWarning("Usage: /activity-sync");
+			return;
+		}
+		if (!(await this.ensureActivitySyncAuthenticated())) return;
+		this.settingsManager.setActivitySyncEnabled(true);
+		await this.settingsManager.flush();
+		const result = await this.runActivitySyncNow();
+		if (result.status === "not_authenticated" && (await this.ensureActivitySyncAuthenticated(true))) {
+			await this.runActivitySyncNow();
+		}
+	}
+
+	private formatActivitySyncWatermark(watermark: string | null | undefined): string {
+		return watermark ?? "none";
+	}
+
+	private async runActivitySyncNow(): Promise<ActivitySyncResult> {
+		this.showStatus("Running activity sync...");
+		const result = await syncSessionAnalytics({
+			settingsManager: this.settingsManager,
+			authStorage: this.session.modelRegistry.authStorage,
+		});
+		if (result.status === "uploaded") {
+			this.showStatus(
+				`Activity sync uploaded ${result.recordsSent?.toLocaleString() ?? 0} records since ${this.formatActivitySyncWatermark(result.serverWatermark)}`,
+			);
+			return result;
+		}
+		if (result.status === "no_changes") {
+			this.showStatus(
+				`Activity sync found no new activity since ${this.formatActivitySyncWatermark(result.serverWatermark)}`,
+			);
+			return result;
+		}
+		if (result.status === "not_authenticated") {
+			this.showWarning("Activity sync is not authenticated. Starting login...");
+			return result;
+		}
+		if (result.status === "already_running") {
+			this.showWarning("Activity sync is already running in another process.");
+			return result;
+		}
+		this.showError(
+			"serverWatermark" in result
+				? `${result.error ?? "Activity sync failed"} (server watermark: ${this.formatActivitySyncWatermark(result.serverWatermark)})`
+				: (result.error ?? "Activity sync failed"),
+		);
+		return result;
+	}
+
+	private async ensureActivitySyncAuthenticated(forceLogin = false): Promise<boolean> {
+		const deviceId = getStableActivitySyncDeviceId(this.settingsManager);
+		await this.settingsManager.flush();
+		const accessToken = await this.ensurePiDevAuthenticated([PI_DEV_ACTIVITY_SYNC_SCOPE], {
+			title: "Login to pi.dev for activity sync",
+			deviceId,
+			forceLogin,
+		});
+		if (!accessToken) return false;
+		this.showStatus("Activity sync login complete");
+		return true;
 	}
 
 	private handleChangelogCommand(): void {

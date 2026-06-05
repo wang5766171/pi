@@ -4,6 +4,7 @@ export { type Args, parseArgs } from "./cli/args.ts";
 
 // Config paths
 export { getAgentDir, VERSION } from "./config.ts";
+export * from "./core/activity-sync/index.ts";
 export {
 	AgentSession,
 	type AgentSessionConfig,
@@ -49,7 +50,11 @@ export {
 	serializeConversation,
 	shouldCompact,
 } from "./core/compaction/index.ts";
-export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
+export {
+	createEventBus,
+	type EventBus,
+	type EventBusController,
+} from "./core/event-bus.ts";
 // Extension system
 export type {
 	AgentEndEvent,
@@ -160,8 +165,16 @@ export type {
 	ResolvedResource,
 } from "./core/package-manager.ts";
 export { DefaultPackageManager } from "./core/package-manager.ts";
-export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
-export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
+export * from "./core/pi-dev/index.ts";
+export type {
+	ResourceCollision,
+	ResourceDiagnostic,
+	ResourceLoader,
+} from "./core/resource-loader.ts";
+export {
+	DefaultResourceLoader,
+	loadProjectContextFiles,
+} from "./core/resource-loader.ts";
 // SDK for programmatic usage
 export {
 	AgentSessionRuntime,
@@ -190,6 +203,7 @@ export {
 	createWriteTool,
 	type PromptTemplate,
 } from "./core/sdk.ts";
+
 export {
 	type BranchSummaryEntry,
 	buildSessionContext,
@@ -217,6 +231,8 @@ export {
 	type CompactionSettings,
 	type ImageSettings,
 	type PackageSource,
+	type PiDevActivitySyncSettings,
+	type PiDevSettings,
 	type RetrySettings,
 	SettingsManager,
 	type SettingsManagerCreateOptions,
@@ -282,7 +298,11 @@ export {
 	type WriteToolOptions,
 	withFileMutationQueue,
 } from "./core/tools/index.ts";
-export { hasProjectTrustInputs, type ProjectTrustDecision, ProjectTrustStore } from "./core/trust-manager.ts";
+export {
+	hasProjectTrustInputs,
+	type ProjectTrustDecision,
+	ProjectTrustStore,
+} from "./core/trust-manager.ts";
 // Main entry point
 export { type MainOptions, main } from "./main.ts";
 // Run modes for programmatic SDK usage
@@ -354,6 +374,10 @@ export {
 export { copyToClipboard } from "./utils/clipboard.ts";
 export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
 export { convertToPng } from "./utils/image-convert.ts";
-export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
+export {
+	formatDimensionNote,
+	type ResizedImage,
+	resizeImage,
+} from "./utils/image-resize.ts";
 // Shell utilities
 export { getShellConfig } from "./utils/shell.ts";

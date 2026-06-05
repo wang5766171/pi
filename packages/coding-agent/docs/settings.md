@@ -64,6 +64,31 @@ Use `/trust` in interactive mode to save a project trust decision for future ses
 
 Set `PI_SKIP_VERSION_CHECK=1` to disable the Pi version update check. Use `--offline` or `PI_OFFLINE=1` to disable all startup network operations described here, including update checks, package update checks, and install/update telemetry.
 
+### pi.dev Integration
+
+`/share` uses pi.dev by default for unlisted session sharing. It stores the pi.dev OAuth credential in `auth.json` under `pi.dev` when login is needed. `PI_DEV_URL` overrides the pi.dev API base URL.
+
+Run `/activity-sync` to log in and enable background sync of session activity analytics metadata.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `piDev.activitySync.enabled` | boolean | `false` | Enable background activity sync after `/activity-sync` login |
+| `piDev.activitySync.intervalHours` | number | `24` | Minimum hours between background sync attempts |
+| `piDev.activitySync.deviceId` | string | auto | Stable device ID used for pi.dev activity sync |
+
+Activity sync omits raw message content, tool arguments, thinking text, error text, labels, names, and custom data. Non-secret sync timestamps are stored in `activity-sync.json`. `PI_OFFLINE=1` disables background sync.
+
+```json
+{
+  "piDev": {
+    "activitySync": {
+      "enabled": true,
+      "intervalHours": 24
+    }
+  }
+}
+```
+
 ### Warnings
 
 | Setting | Type | Default | Description |
