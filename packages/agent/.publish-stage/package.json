@@ -1,6 +1,6 @@
 {
 	"name": "@jishu-hub/jishu-agent-core",
-	"version": "0.79.1-5",
+	"version": "0.79.1-6",
 	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -28,7 +28,7 @@
 		"coverage:harness": "vitest --run --config vitest.harness.config.ts --coverage"
 	},
 	"dependencies": {
-		"@earendil-works/pi-ai": "npm:@jishu-hub/jishu-agent-ai@0.79.1-5",
+		"@earendil-works/pi-ai": "npm:@jishu-hub/jishu-agent-ai@0.79.1-6",
 		"ignore": "7.0.5",
 		"typebox": "1.1.38",
 		"yaml": "2.9.0"
