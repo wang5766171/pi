@@ -81,12 +81,17 @@ export function createLocalBashOperations(options?: { shellPath?: string }): Bas
 				cwd,
 				detached: process.platform !== "win32",
 				env: env ?? getShellEnv(),
-				stdio: [commandFromStdin ? "pipe" : "ignore", "pipe", "pipe"],
+				stdio: ["pipe", "pipe", "pipe"],
 				windowsHide: true,
 			});
 			if (commandFromStdin) {
 				child.stdin?.on("error", () => {});
 				child.stdin?.end(command);
+			} else {
+				// Close stdin immediately — command is passed as shell arg, not via stdin.
+				// Using "pipe" + end() instead of "ignore" avoids creating a `nul` file on Windows.
+				child.stdin?.on("error", () => {});
+				child.stdin?.end();
 			}
 			if (child.pid) trackDetachedChildPid(child.pid);
 			let timedOut = false;

@@ -252,7 +252,9 @@ export function createFindToolDefinition(
 						}
 						args.push("--", effectivePattern, searchPath);
 
-						const child = spawn(fdPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+						const child = spawn(fdPath, args, { stdio: ["pipe", "pipe", "pipe"] });
+						child.stdin.on("error", () => {});
+						child.stdin.end();
 						const rl = createInterface({ input: child.stdout });
 						let stderr = "";
 						const lines: string[] = [];
