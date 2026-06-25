@@ -218,9 +218,7 @@ export function createGrepToolDefinition(
 						if (glob) args.push("--glob", glob);
 						args.push("--", pattern, searchPath);
 
-						const child = spawn(rgPath, args, { stdio: ["pipe", "pipe", "pipe"] });
-						child.stdin.on("error", () => {});
-						child.stdin.end();
+						const child = spawn(rgPath, args, { stdio: ["ignore", "pipe", "pipe"] });
 						const rl = createInterface({ input: child.stdout });
 						let stderr = "";
 						let matchCount = 0;
