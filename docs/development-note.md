@@ -25,7 +25,7 @@
 | 注入方式 | `main.ts` import + `customTools` 注入 | `pi.registerTool(defineTool(...))` |
 | 对 `main.ts` 的改动 | 改 2 处（import + 注入） | 0 处（已还原上游） |
 | 合并上游冲突 | 高（`main.ts` 高频文件） | 无 |
-| 分发 | 随 pi 源码/包 | jishu hub 部署到 `~/.pi/agent/extensions/`，任意 cwd 生效 |
+| 分发 | 随 pi 源码/包 | jishu hub 部署到 `~/.jishu-agent/extensions/`，任意 cwd 生效 |
 
 ## 三、改动清单（精确到行）
 
@@ -73,3 +73,13 @@
 - **合并上游**：`main.ts` 不再有冲突点；`.pi/extensions/request-user-input.ts` 是本仓库独有路径，上游不会维护同名文件，同样不冲突。
 - **需关注的上游变更**：仅当上游调整了扩展工具的 `execute` 签名或 `ExtensionUIContext` 接口时，需同步更新本扩展。可对照 `packages/coding-agent/src/core/extensions/types.ts`。
 - **下一步**：本次把「改源码」收敛成了「放扩展文件」，是 fork 非侵入化的成功先例。把同样的模式推广到其余侵入改动（`package.json` 的版本/bin/build/prepare 等），见 [`next-steps.md`](./next-steps.md)。
+
+## 八、扩展源移交主仓纳管（2026-06-27）
+
+为彻底解耦 pi submodule，扩展源已从本仓库 `.pi/extensions/request-user-input.ts` 移交 **jishu-hub 主仓** 纳管：
+
+- **新源位置**：主仓 `src-tauri/resources/extensions/request-user-input.ts`，内容与本仓库原文件一致；
+- **分发机制**：主仓编译期 `include_str!` 嵌入，Hub setup hook（`task_plan::ensure_request_user_input_extension`）部署到 `~/.jishu-agent/extensions/` 并幂等注册 `settings.json`，与 `jishu-task-conductor` 完全同机制；
+- **本仓库状态**：`.pi/extensions/request-user-input.ts` 已删除（`main.ts` 仍保持上游原样，无引用残留）。
+
+> §二表格中的「工具源码位置」、§七中「本仓库独有路径」等描述反映的是 c019b317 改造时的历史状态；现状以本节为准。pi 的扩展 API（`ExtensionAPI.registerTool`、`ExtensionUIContext`）未变，扩展源在新位置仍等价工作。
