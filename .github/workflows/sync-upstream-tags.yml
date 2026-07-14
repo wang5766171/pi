@@ -36,9 +36,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           
-      - name: Let git push to origin with the workflow token
+      - name: Let git push to origin with a PAT that can push workflow files
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
-          git remote set-url origin "https://x-access-token:${{ secrets.SYNC_PAT }}@github.com/${{ github.repository }}.git"
+          git remote set-url origin "https://x-access-token:${SYNC_PAT}@github.com/${{ github.repository }}.git"
 
       - name: Sync tags from upstream
         env:
