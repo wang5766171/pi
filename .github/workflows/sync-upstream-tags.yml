@@ -3,9 +3,9 @@ name: Sync upstream tags
 # Mirrors release tags from upstream (earendil-works/pi) into this fork, on a
 # schedule and on demand. The heavy lifting lives in scripts/sync-upstream-tags.sh.
 on:
-#  schedule:
+schedule:
     # Twice daily, ~09:30 and ~21:30 Beijing time (UTC+8). Edit freely.
- #   - cron: '27 1,13 * * *'
+    - cron: '27 1,13 * * *'
   workflow_dispatch:
     inputs:
       mode:
