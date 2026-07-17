@@ -128,6 +128,7 @@ export type AgentSessionEvent =
 			type: "agent_end";
 			messages: AgentMessage[];
 			willRetry: boolean;
+			willContinue?: boolean;
 	  }
 	| {
 			type: "queue_update";
@@ -510,8 +511,19 @@ export class AgentSession {
 		// Emit to extensions first
 		await this._emitExtensionEvent(event);
 
-		// Notify all listeners
-		this._emit(event.type === "agent_end" ? { ...event, willRetry: this._willRetryAfterAgentEnd(event) } : event);
+		// Notify all listeners. Extension agent_end handlers may queue a follow-up
+		// while they are awaited above, so expose whether AgentSession will start
+		// another core run before the external prompt operation is complete.
+		if (event.type === "agent_end") {
+			const willRetry = this._willRetryAfterAgentEnd(event);
+			this._emit({
+				...event,
+				willRetry,
+				willContinue: willRetry || this.agent.hasQueuedMessages(),
+			});
+		} else {
+			this._emit(event);
+		}
 
 		// Handle session persistence
 		if (event.type === "message_end") {
