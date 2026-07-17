@@ -134,6 +134,13 @@ export interface ExtensionUIContext {
 	/** Show a text input dialog. */
 	input(title: string, placeholder?: string, opts?: ExtensionUIDialogOptions): Promise<string | undefined>;
 
+	/**
+	 * Show a multi-selector and return the user's choices (possibly several).
+	 * The host serializes multiple selections as a single string with choices
+	 * joined by newlines; this method splits them back into an array.
+	 */
+	multiSelect(title: string, options: string[], opts?: ExtensionUIDialogOptions): Promise<string[] | undefined>;
+
 	/** Show a notification to the user. */
 	notify(message: string, type?: "info" | "warning" | "error"): void;
 

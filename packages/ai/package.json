@@ -1,11 +1,14 @@
 {
 	"name": "@earendil-works/pi-ai",
-	"version": "0.80.10",
+	"version": "0.80.10-8",
 	"description": "Unified LLM API with automatic model discovery and provider configuration",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"sideEffects": [
+		"./src/compat.ts",
+		"./src/images.ts",
+		"./src/providers/images/register-builtins.ts",
 		"./dist/compat.js",
 		"./dist/images.js",
 		"./dist/providers/images/register-builtins.js"
@@ -52,7 +55,7 @@
 		"generate-models": "node scripts/generate-models.ts",
 		"generate-model-catalog": "node scripts/generate-models.ts --strict --json-only --json-output ../../.artifacts/model-catalog",
 		"generate-image-models": "node scripts/generate-image-models.ts",
-		"build": "npm run generate-models && npm run generate-image-models && tsgo -p tsconfig.build.json",
+		"build": "tsgo -p tsconfig.build.json",
 		"test": "vitest --run",
 		"prepublishOnly": "npm run clean && npm run build"
 	},
