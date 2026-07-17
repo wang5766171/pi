@@ -155,4 +155,6 @@ done
 
 echo
 echo "Done. Synced $synced tag(s) to origin."
-[[ "$MODE" == "latest" ]] && echo "(Tip: re-run with --all to catch up any remaining older tags.)"
+if [[ "$MODE" == "latest" ]];then
+  echo "(Tip: re-run with --all to catch up any remaining older tags.)"
+fi
