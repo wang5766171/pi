@@ -1,11 +1,14 @@
 {
 	"name": "@earendil-works/pi-ai",
-	"version": "0.83.0",
+	"version": "0.83.0-8",
 	"description": "Unified LLM API with automatic model discovery and provider configuration",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"sideEffects": [
+		"./src/compat.ts",
+		"./src/images.ts",
+		"./src/providers/images/register-builtins.ts",
 		"./dist/compat.js",
 		"./dist/images.js",
 		"./dist/providers/images/register-builtins.js"
