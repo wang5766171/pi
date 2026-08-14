@@ -2367,6 +2367,12 @@ export class InteractiveMode {
 
 	private createExtensionUIContext(): ExtensionUIContext {
 		return {
+			// multiSelect: TUI 暂无 checkbox 多选组件，fallback 到单选 select（取首个）+ warn。
+			// RPC 模式（Hub）已支持真正多选；这里仅兜底，避免 interactive 模式缺方法。
+			multiSelect: (title, options, opts) => {
+				console.warn("[pi] multiSelect in interactive mode falls back to single select");
+				return this.showExtensionSelector(title, options, opts).then((v) => (v ? [v] : undefined));
+			},
 			select: (title, options, opts) => this.showExtensionSelector(title, options, opts),
 			confirm: (title, message, opts) => this.showExtensionConfirm(title, message, opts),
 			input: (title, placeholder, opts) => this.showExtensionInput(title, placeholder, opts),
