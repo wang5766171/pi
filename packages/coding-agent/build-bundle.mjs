@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Read dependencies from all runtime packages. Internal @earendil-works packages
 // are bundled; third-party packages are emitted into runtime-deps.json.
 // Note: v0.81.0 renamed the `orchestrator` package to `server`.
-const packages = ['coding-agent', 'agent', 'ai', 'tui', 'server'];
+const packages = ['coding-agent', 'agent', 'ai', 'tui', 'server', 'client', 'protocol'];
 
 // Collect the runtime dependency set (name -> version) that esbuild must leave
 // external. This map is the single source of truth shared by Full (pack-pi.mjs)
