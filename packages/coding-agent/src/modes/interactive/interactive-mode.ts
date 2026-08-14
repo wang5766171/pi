@@ -112,7 +112,6 @@ import { CustomEntryComponent } from "./components/custom-entry.ts";
 import { CustomMessageComponent } from "./components/custom-message.ts";
 import { DaxnutsComponent } from "./components/daxnuts.ts";
 import { DynamicBorder } from "./components/dynamic-border.ts";
-import { EarendilAnnouncementComponent } from "./components/earendil-announcement.ts";
 import { ExtensionEditorComponent } from "./components/extension-editor.ts";
 import { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
@@ -769,7 +768,7 @@ export class InteractiveMode {
 			);
 			const onboarding = theme.fg(
 				"dim",
-				`Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.`,
+				`jishu can explain its own features and look up its docs. Ask it how to use or extend jishu.`,
 			);
 			this.builtInHeader = new ExpandableText(
 				() => `${logo}\n${compactInstructions}\n${compactOnboarding}\n\n${onboarding}`,
@@ -3511,7 +3510,7 @@ export class InteractiveMode {
 			new Text(
 				theme.fg(
 					"warning",
-					`This project is not trusted. Project ${CONFIG_DIR_NAME} resources and packages are ignored. Use /trust to save a trust decision, then restart pi.`,
+					`This project is not trusted. Project ${CONFIG_DIR_NAME} resources and packages are ignored. Use /trust to save a trust decision, then restart jishu.`,
 				),
 				1,
 				0,
@@ -5166,7 +5165,7 @@ export class InteractiveMode {
 			providerOption.name,
 			`${providerOption.name} setup`,
 		);
-		dialog.showInfo(`${providerOption.method?.name ?? "Authentication"} is configured outside pi.`, [], true);
+		dialog.showInfo(`${providerOption.method?.name ?? "Authentication"} is configured outside jishu.`, [], true);
 
 		this.editorContainer.clear();
 		this.editorContainer.addChild(dialog);
@@ -5930,7 +5929,6 @@ export class InteractiveMode {
 
 	private handleDementedDelves(): void {
 		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new EarendilAnnouncementComponent());
 		this.ui.requestRender();
 	}
 
