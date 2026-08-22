@@ -11,7 +11,8 @@ import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dis
 
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
-	reserveTokens?: number; // default: 16384
+	/** jishu v0.84.2-10：触发阈值按窗口百分比（1-99，default: 90），替代 reserveTokens。 */
+	thresholdPercent?: number;
 	keepRecentTokens?: number; // default: 20000
 }
 
@@ -778,18 +779,31 @@ export class SettingsManager {
 		this.save();
 	}
 
-	getCompactionReserveTokens(): number {
-		return this.settings.compaction?.reserveTokens ?? 16384;
+	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）。 */
+	getCompactionThresholdPercent(): number {
+		const pct = this.settings.compaction?.thresholdPercent;
+		if (typeof pct !== "number" || !Number.isFinite(pct)) return 90;
+		return Math.min(99, Math.max(1, Math.round(pct)));
+	}
+
+	/** jishu v0.84.2-10：RPC 热推阈值——写全局设置并持久化（项目覆盖仍优先）。 */
+	setCompactionThresholdPercent(percent: number): void {
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.thresholdPercent = Math.min(99, Math.max(1, Math.round(percent)));
+		this.markModified("compaction", "thresholdPercent");
+		this.save();
 	}
 
 	getCompactionKeepRecentTokens(): number {
 		return this.settings.compaction?.keepRecentTokens ?? 20000;
 	}
 
-	getCompactionSettings(): { enabled: boolean; reserveTokens: number; keepRecentTokens: number } {
+	getCompactionSettings(): { enabled: boolean; thresholdPercent: number; keepRecentTokens: number } {
 		return {
 			enabled: this.getCompactionEnabled(),
-			reserveTokens: this.getCompactionReserveTokens(),
+			thresholdPercent: this.getCompactionThresholdPercent(),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(),
 		};
 	}

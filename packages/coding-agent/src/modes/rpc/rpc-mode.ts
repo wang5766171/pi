@@ -543,7 +543,13 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			}
 
 			case "set_auto_compaction": {
-				session.setAutoCompactionEnabled(command.enabled);
+				// jishu v0.84.2-10：字段可选热推——只应用出现的字段。
+				if (typeof command.enabled === "boolean") {
+					session.setAutoCompactionEnabled(command.enabled);
+				}
+				if (typeof command.thresholdPercent === "number") {
+					session.setAutoCompactionThresholdPercent(command.thresholdPercent);
+				}
 				return success(id, "set_auto_compaction");
 			}
 

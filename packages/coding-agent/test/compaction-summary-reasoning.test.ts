@@ -150,7 +150,7 @@ describe("generateSummary reasoning options", () => {
 			isSplitTurn: true,
 			tokensBefore: 600000,
 			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
-			settings: { enabled: true, reserveTokens: 500000, keepRecentTokens: 20000 },
+			settings: { enabled: true, thresholdPercent: 10, keepRecentTokens: 20000 },
 		};
 
 		const result = await compact(preparation, createModel(false, 128000), "test-key");
@@ -162,6 +162,8 @@ describe("generateSummary reasoning options", () => {
 			totalTokens: 40,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		});
-		expect(completeSimpleMock.mock.calls.map((call) => call[2]?.maxTokens)).toEqual([128000, 128000]);
+		// jishu v0.84.2-10：预算按窗口×(100−10%)=180k——history 摘要 0.8×180k=144k
+		// 超出输出上限被钳到 128k（钳制语义断言）；turn-prefix 摘要按预算 50% 取 90k。
+		expect(completeSimpleMock.mock.calls.map((call) => call[2]?.maxTokens)).toEqual([128000, 90000]);
 	});
 });

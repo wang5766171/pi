@@ -312,10 +312,10 @@ export class RpcClient {
 	}
 
 	/**
-	 * Set auto-compaction enabled/disabled.
+	 * Set auto-compaction enabled/disabled（v0.84.2-10：阈值可随同热推）。
 	 */
-	async setAutoCompaction(enabled: boolean): Promise<void> {
-		await this.send({ type: "set_auto_compaction", enabled });
+	async setAutoCompaction(enabled: boolean, thresholdPercent?: number): Promise<void> {
+		await this.send({ type: "set_auto_compaction", enabled, thresholdPercent });
 	}
 
 	/**

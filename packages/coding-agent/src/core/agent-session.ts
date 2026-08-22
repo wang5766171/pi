@@ -2229,6 +2229,11 @@ export class AgentSession {
 		this.settingsManager.setCompactionEnabled(enabled);
 	}
 
+	/** jishu v0.84.2-10：热推压缩阈值百分比（运行中会话即时生效，1-99 钳制）。 */
+	setAutoCompactionThresholdPercent(percent: number): void {
+		this.settingsManager.setCompactionThresholdPercent(percent);
+	}
+
 	/** Whether auto-compaction is enabled */
 	get autoCompactionEnabled(): boolean {
 		return this.settingsManager.getCompactionEnabled();
