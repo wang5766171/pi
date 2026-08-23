@@ -333,6 +333,9 @@ export interface ExtensionContext {
 	scopedModels: readonly ScopedModel[];
 	/** Current thinking level, when provided by the session runtime. */
 	thinkingLevel?: ThinkingLevel;
+	/** jishu v0.84.2-11：读会话生效设置键（审批扩展用）。可选——非会话
+	 * 上下文（测试桩等）无设置源时省略，调用方回退默认。 */
+	getSetting?<T = unknown>(key: string): T | undefined;
 	/** Whether the agent is idle (not streaming) */
 	isIdle(): boolean;
 	/** Whether project-local trust is active for this context. */
@@ -1246,6 +1249,8 @@ export interface ExtensionAPI {
 	on(event: "model_select", handler: ExtensionHandler<ModelSelectEvent>): void;
 	on(event: "thinking_level_select", handler: ExtensionHandler<ThinkingLevelSelectEvent>): void;
 	on(event: "tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>): void;
+	/** jishu v0.84.2-11：审批扩展等需要在事件处理器内请求 UI / 读设置。 */
+	get context(): ExtensionContext;
 	on(event: "tool_result", handler: ExtensionHandler<ToolResultEvent, ToolResultEventResult>): void;
 	on(event: "user_bash", handler: ExtensionHandler<UserBashEvent, UserBashEventResult>): void;
 	on(event: "input", handler: ExtensionHandler<InputEvent, InputEventResult>): void;
@@ -1697,7 +1702,10 @@ export interface ExtensionCommandContextActions {
  * Full runtime = state + actions.
  * Created by loader with throwing action stubs, completed by runner.initialize().
  */
-export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {}
+export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {
+	/** jishu v0.84.2-11：runner 绑定后写入（api.context 桥）。 */
+	context: ExtensionContext;
+}
 
 /** Loaded extension with all registered items. */
 export interface Extension {
