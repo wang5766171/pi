@@ -16,7 +16,7 @@ export function cloudflareAIGatewayProvider(): Provider<
 		models: Object.values(CLOUDFLARE_AI_GATEWAY_MODELS),
 		api: {
 			"anthropic-messages": cloudflareStreams(anthropicMessagesApi()),
-			"openai-completions": cloudflareStreams(openAICompletionsApi()),
+			["openai-completions" as const]: cloudflareStreams(openAICompletionsApi()),
 			"openai-responses": cloudflareStreams(openAIResponsesApi()),
 		},
 	});
