@@ -12,7 +12,8 @@ import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dis
 
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
-	reserveTokens?: number; // default: 16384
+	/** jishu v0.84.2-10：触发阈值按窗口百分比（1-99，default: 90），替代 reserveTokens。 */
+	thresholdPercent?: number;
 	keepRecentTokens?: number; // default: 20000
 }
 
@@ -126,6 +127,10 @@ export interface Settings {
 	images?: ImageSettings;
 	enabledModels?: string[]; // Model patterns for cycling (same format as --models CLI flag)
 	defaultTools?: string[]; // Initial built-in tool selection
+	/** jishu v0.84.2-11（hub v0.8.0 需求1 P-2）：逐次工具审批模式。
+	 * smart=hub 策略链（只读放行/Once/弹窗，默认）；ask_always=每次弹窗；
+	 * off=扩展直接放行不发请求。 */
+	toolApproval?: "smart" | "ask_always" | "off";
 	doubleEscapeAction?: "fork" | "tree" | "none"; // Action for double-escape with empty editor (default: "tree")
 	treeFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all"; // Default filter when opening /tree
 	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
@@ -839,18 +844,36 @@ export class SettingsManager {
 		this.save();
 	}
 
-	getCompactionReserveTokens(): number {
-		return this.settings.compaction?.reserveTokens ?? 16384;
+	/** jishu v0.84.2-11：扩展上下文读任意设置键（审批扩展读 toolApproval）。 */
+	getSetting<T = unknown>(key: string): T | undefined {
+		return (this.settings as Record<string, unknown>)[key] as T | undefined;
+	}
+
+	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）。 */
+	getCompactionThresholdPercent(): number {
+		const pct = this.settings.compaction?.thresholdPercent;
+		if (typeof pct !== "number" || !Number.isFinite(pct)) return 90;
+		return Math.min(99, Math.max(1, Math.round(pct)));
+	}
+
+	/** jishu v0.84.2-10：RPC 热推阈值——写全局设置并持久化（项目覆盖仍优先）。 */
+	setCompactionThresholdPercent(percent: number): void {
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.thresholdPercent = Math.min(99, Math.max(1, Math.round(percent)));
+		this.markModified("compaction", "thresholdPercent");
+		this.save();
 	}
 
 	getCompactionKeepRecentTokens(): number {
 		return this.settings.compaction?.keepRecentTokens ?? 20000;
 	}
 
-	getCompactionSettings(): { enabled: boolean; reserveTokens: number; keepRecentTokens: number } {
+	getCompactionSettings(): { enabled: boolean; thresholdPercent: number; keepRecentTokens: number } {
 		return {
 			enabled: this.getCompactionEnabled(),
-			reserveTokens: this.getCompactionReserveTokens(),
+			thresholdPercent: this.getCompactionThresholdPercent(),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(),
 		};
 	}

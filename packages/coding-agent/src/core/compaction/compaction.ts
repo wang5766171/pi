@@ -125,13 +125,14 @@ function combineUsage(first: Usage, second: Usage): Usage {
 
 export interface CompactionSettings {
 	enabled: boolean;
-	reserveTokens: number;
+	/** jishu v0.84.2-10：触发阈值改按上下文窗口百分比（默认 90%）。 */
+	thresholdPercent: number;
 	keepRecentTokens: number;
 }
 
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 	enabled: true,
-	reserveTokens: 16384,
+	thresholdPercent: 90,
 	keepRecentTokens: 20000,
 };
 
@@ -234,7 +235,10 @@ export function estimateContextTokens(messages: AgentMessage[]): ContextUsageEst
  */
 export function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean {
 	if (!settings.enabled) return false;
-	return contextTokens > contextWindow - settings.reserveTokens;
+	// jishu v0.84.2-10：绝对 reserve 值在 128k～1M 窗口档位间含义悬殊，改为
+	// 窗口百分比阈值；窗口未知（0）时不自动压缩。
+	if (contextWindow <= 0) return false;
+	return contextTokens > (contextWindow * settings.thresholdPercent) / 100;
 }
 
 // ============================================================================
@@ -880,6 +884,13 @@ export async function compact(
 		settings,
 	} = preparation;
 
+	// jishu v0.84.2-10：摘要预算随阈值换算——窗口 × (100 − threshold%)，
+	// 即触发后预留的可释放空间；窗口未知时回退旧的绝对默认 16384。
+	const reserveTokens =
+		model?.contextWindow && model.contextWindow > 0
+			? Math.floor((model.contextWindow * (100 - settings.thresholdPercent)) / 100)
+			: 16384;
+
 	// Generate summaries and merge into one
 	let summary: string;
 	let summaryUsage: Usage;
@@ -891,7 +902,7 @@ export async function compact(
 			const historyResult = await generateSummaryWithUsage(
 				messagesToSummarize,
 				model,
-				settings.reserveTokens,
+				reserveTokens,
 				apiKey,
 				headers,
 				signal,
@@ -910,7 +921,7 @@ export async function compact(
 		const turnPrefixResult = await generateTurnPrefixSummary(
 			turnPrefixMessages,
 			model,
-			settings.reserveTokens,
+			reserveTokens,
 			apiKey,
 			headers,
 			env,
@@ -929,7 +940,7 @@ export async function compact(
 		const result = await generateSummaryWithUsage(
 			messagesToSummarize,
 			model,
-			settings.reserveTokens,
+			reserveTokens,
 			apiKey,
 			headers,
 			signal,

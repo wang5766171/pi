@@ -139,6 +139,15 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				"cancelled" in r && r.cancelled ? undefined : "value" in r ? r.value : undefined,
 			),
 
+		multiSelect: (title, options, opts) =>
+			createDialogPromise(opts, undefined, { method: "multiSelect", title, options, timeout: opts?.timeout }, (r) =>
+				"cancelled" in r && r.cancelled
+					? undefined
+					: "value" in r && typeof r.value === "string"
+						? r.value.split("\n").filter(Boolean)
+						: undefined,
+			),
+
 		confirm: (title, message, opts) =>
 			createDialogPromise(opts, false, { method: "confirm", title, message, timeout: opts?.timeout }, (r) =>
 				"cancelled" in r && r.cancelled ? false : "confirmed" in r ? r.confirmed : false,
@@ -538,7 +547,13 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			}
 
 			case "set_auto_compaction": {
-				session.setAutoCompactionEnabled(command.enabled);
+				// jishu v0.84.2-10：字段可选热推——只应用出现的字段。
+				if (typeof command.enabled === "boolean") {
+					session.setAutoCompactionEnabled(command.enabled);
+				}
+				if (typeof command.thresholdPercent === "number") {
+					session.setAutoCompactionThresholdPercent(command.thresholdPercent);
+				}
 				return success(id, "set_auto_compaction");
 			}
 
