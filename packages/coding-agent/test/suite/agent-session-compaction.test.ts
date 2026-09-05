@@ -431,7 +431,7 @@ describe("AgentSession compaction characterization", () => {
 		const order: string[] = [];
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 2600, maxTokens: 100 }],
-			settings: { compaction: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 } },
 			tools: [largeTool],
 			extensionFactories: [
 				(pi) => {
@@ -499,7 +499,7 @@ describe("AgentSession compaction characterization", () => {
 		});
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 2600, maxTokens: 100 }],
-			settings: { compaction: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 } },
 			tools: [largeTool],
 			extensionFactories: [
 				(pi) => {
@@ -557,7 +557,7 @@ describe("AgentSession compaction characterization", () => {
 		};
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 2600, maxTokens: 100 }],
-			settings: { compaction: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 } },
 			tools: [terminatingTool],
 			extensionFactories: [
 				(pi) => {
