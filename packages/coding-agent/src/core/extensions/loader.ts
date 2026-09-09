@@ -36,12 +36,12 @@ import type {
 	EntryRenderer,
 	Extension,
 	ExtensionAPI,
+	ExtensionContext,
 	ExtensionFactory,
 	ExtensionRuntime,
 	LoadExtensionsResult,
 	MarkdownTransformer,
 	MessageRenderer,
-	ExtensionContext,
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
@@ -290,8 +290,7 @@ function createExtensionAPI(
 		// jishu v0.84.2-11：事件处理器内访问 UI / 设置（审批扩展用）。
 		get context(): import("./types.ts").ExtensionContext {
 			runtime.assertActive();
-			return (runtime as unknown as { context?: ExtensionContext }).context
-				?? ({} as ExtensionContext);
+			return (runtime as unknown as { context?: ExtensionContext }).context ?? ({} as ExtensionContext);
 		},
 
 		registerTool(tool: ToolDefinition): void {

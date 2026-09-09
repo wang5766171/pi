@@ -64,7 +64,7 @@ function createErrorToolResult(message: string): AgentToolResult<unknown> {
 	};
 }
 
-function immediateError(toolCall: AgentToolCall, message: string, terminate = false): ImmediateToolOutcome {
+export function immediateError(toolCall: AgentToolCall, message: string, terminate = false): ImmediateToolOutcome {
 	return {
 		kind: "immediate",
 		toolCall,
