@@ -2042,8 +2042,6 @@ export class InteractiveMode {
 			model: this.session.model,
 			scopedModels: this.session.scopedModels,
 			thinkingLevel: this.session.thinkingLevel,
-			// jishu v0.84.2-11：审批扩展读 toolApproval（TUI 上下文）。
-			getSetting: (key: string) => this.settingsManager.getSetting(key),
 			isIdle: () => this.session.isIdle,
 			isProjectTrusted: () => this.settingsManager.isProjectTrusted(),
 			signal: this.session.agent.signal,

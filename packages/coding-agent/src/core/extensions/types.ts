@@ -337,7 +337,6 @@ export interface ExtensionContext {
 	thinkingLevel?: ThinkingLevel;
 	/** jishu v0.84.2-11：读会话生效设置键（审批扩展用）。可选——非会话
 	 * 上下文（测试桩等）无设置源时省略，调用方回退默认。 */
-	getSetting?<T = unknown>(key: string): T | undefined;
 	/** Whether the agent is idle (not streaming) */
 	isIdle(): boolean;
 	/** Whether project-local trust is active for this context. */

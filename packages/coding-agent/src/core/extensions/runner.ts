@@ -277,7 +277,6 @@ export class ExtensionRunner {
 	private modelRegistry: ModelRegistry;
 	private errorListeners: Set<ExtensionErrorListener> = new Set();
 	private getModel: () => Model<any> | undefined = () => undefined;
-	private getSettingFn: (key: string) => unknown = () => undefined;
 	private getScopedModels: () => readonly ScopedModel[] = () => [];
 	private isIdleFn: () => boolean = () => true;
 	private isProjectTrustedFn: () => boolean = () => true;
@@ -436,9 +435,6 @@ export class ExtensionRunner {
 	}
 
 	/** jishu v0.84.2-11：注入设置读取（agent-session 构造时）。 */
-	setSettingGetter(fn: (key: string) => unknown): void {
-		this.getSettingFn = fn;
-	}
 
 	setUIContext(uiContext?: ExtensionUIContext, mode: ExtensionMode = "print"): void {
 		this.uiContext = uiContext ? this.wrapUIPromptContext(uiContext) : noOpUIContext;
@@ -768,10 +764,7 @@ export class ExtensionRunner {
 				runner.assertActive();
 				return runner.runtime.getThinkingLevel();
 			},
-			getSetting: <T = unknown>(key: string): T | undefined => {
-				runner.assertActive();
-				return runner.getSettingFn(key) as T | undefined;
-			},
+
 			// （占位以兼容可选签名——runner 始终提供实现）
 			isIdle: () => {
 				runner.assertActive();

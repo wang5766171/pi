@@ -2528,7 +2528,6 @@ export class AgentSession {
 	private _applyExtensionBindings(runner: ExtensionRunner): void {
 		runner.setUIContext(this._extensionUIContext, this._extensionMode);
 		// jishu v0.84.2-11：扩展上下文读设置（审批扩展读 toolApproval）。
-		runner.setSettingGetter((key) => this.settingsManager.getSetting(key));
 		runner.bindCommandContext(this._extensionCommandContextActions);
 
 		this._extensionErrorUnsubscriber?.();

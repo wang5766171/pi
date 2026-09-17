@@ -130,7 +130,6 @@ export interface Settings {
 	/** jishu v0.84.2-11（hub v0.8.0 需求1 P-2）：逐次工具审批模式。
 	 * smart=hub 策略链（只读放行/Once/弹窗，默认）；ask_always=每次弹窗；
 	 * off=扩展直接放行不发请求。 */
-	toolApproval?: "smart" | "ask_always" | "off";
 	doubleEscapeAction?: "fork" | "tree" | "none"; // Action for double-escape with empty editor (default: "tree")
 	treeFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all"; // Default filter when opening /tree
 	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
@@ -842,11 +841,6 @@ export class SettingsManager {
 		this.globalSettings.compaction.enabled = enabled;
 		this.markModified("compaction", "enabled");
 		this.save();
-	}
-
-	/** jishu v0.84.2-11：扩展上下文读任意设置键（审批扩展读 toolApproval）。 */
-	getSetting<T = unknown>(key: string): T | undefined {
-		return (this.settings as Record<string, unknown>)[key] as T | undefined;
 	}
 
 	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）。 */

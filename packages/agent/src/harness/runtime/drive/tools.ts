@@ -1,6 +1,5 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentToolCall, AgentToolResult } from "../../../types.ts";
-import { decideToolCall } from "../../execution/batch-guard.ts";
 import { AbortRequested } from "../../execution/effect-gate.ts";
 import {
 	applyBeforeToolDecision,
@@ -10,7 +9,6 @@ import {
 	executeToolCall,
 	type FinalizedToolCall,
 	finalizeToolCall,
-	immediateError,
 	prepareToolCall,
 	toolResultFromMessage,
 } from "../../execution/tools.ts";
@@ -475,16 +473,6 @@ async function prepareToolInvocation<TContext extends object | undefined>(
 }
 
 /** jishu-hub fork：批次守卫状态（按 ToolBatch 对象记忆，runTools 生命周期内有效）。 */
-const batchGuardStates = new WeakMap<ToolBatch, { executed: { count: number } }>();
-
-function batchGuardStateFor(batch: ToolBatch): { executed: { count: number } } {
-	let state = batchGuardStates.get(batch);
-	if (state === undefined) {
-		state = { executed: { count: 0 } };
-		batchGuardStates.set(batch, state);
-	}
-	return state;
-}
 
 async function startToolInvocation<TContext extends object | undefined>(
 	lane: Lane<TContext>,
@@ -496,15 +484,6 @@ async function startToolInvocation<TContext extends object | undefined>(
 	toolContext: TContext,
 	recovery: boolean,
 ): Promise<ToolCallTask> {
-	// jishu-hub fork：并行调用爆炸守卫（2026-09-09 线上实录：单消息 636 个
-	// toolCall，全部照单执行）。批内总量超上限的调用立即错误返回，不执行
-	// ——协议完整（每个调用都有 result），模型下一轮续发；跨轮不受限。
-	const guard = batchGuardStateFor(run.batch);
-	const decision = decideToolCall(guard.executed);
-	if (decision.action === "reject") {
-		const outcome = outcomeFromFinalizedCall(immediateError(toolCallFor(sources, call), decision.reason));
-		return { completion: publishToolOutcome(lane, drive, run, call, outcome, recovery) };
-	}
 	const prepared = await prepareToolInvocation(lane, drive, sources, call, tools);
 	if (prepared.kind === "outcome") {
 		return { completion: publishToolOutcome(lane, drive, run, call, prepared.outcome, recovery) };
