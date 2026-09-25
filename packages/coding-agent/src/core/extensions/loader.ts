@@ -22,6 +22,7 @@ import type {
 	EntryRenderer,
 	Extension,
 	ExtensionAPI,
+	ExtensionContext,
 	ExtensionFactory,
 	ExtensionRuntime,
 	LoadExtensionsResult,
@@ -164,6 +165,8 @@ export function createExtensionRuntime(): ExtensionRuntime {
 
 	const runtime: ExtensionRuntime = {
 		sendMessage: notInitialized,
+		// jishu v0.84.2-11：runner 绑定时写入 context，供 api.context 读取。
+		context: undefined as unknown as import("./types.ts").ExtensionContext,
 		sendUserMessage: notInitialized,
 		appendEntry: notInitialized,
 		setSessionName: notInitialized,
@@ -268,6 +271,12 @@ function createExtensionAPI(
 				handlers.splice(handlerIndex, 1);
 				if (handlers.length === 0) extension.handlers.delete(event);
 			};
+		},
+
+		// jishu v0.84.2-11：事件处理器内访问 UI / 设置（审批扩展用）。
+		get context(): import("./types.ts").ExtensionContext {
+			runtime.assertActive();
+			return (runtime as unknown as { context?: ExtensionContext }).context ?? ({} as ExtensionContext);
 		},
 
 		registerTool(tool: ToolDefinition): void {

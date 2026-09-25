@@ -472,6 +472,8 @@ async function prepareToolInvocation<TContext extends object | undefined>(
 		: { kind: "ready", cleared };
 }
 
+/** jishu-hub fork：批次守卫状态（按 ToolBatch 对象记忆，runTools 生命周期内有效）。 */
+
 async function startToolInvocation<TContext extends object | undefined>(
 	lane: Lane<TContext>,
 	drive: Drive,

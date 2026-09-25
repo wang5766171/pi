@@ -144,6 +144,13 @@ export interface ExtensionUIContext {
 	/** Show a text input dialog. */
 	input(title: string, placeholder?: string, opts?: ExtensionUIDialogOptions): Promise<string | undefined>;
 
+	/**
+	 * Show a multi-selector and return the user's choices (possibly several).
+	 * The host serializes multiple selections as a single string with choices
+	 * joined by newlines; this method splits them back into an array.
+	 */
+	multiSelect(title: string, options: string[], opts?: ExtensionUIDialogOptions): Promise<string[] | undefined>;
+
 	/** Show a notification to the user. */
 	notify(message: string, type?: "info" | "warning" | "error"): void;
 
@@ -332,6 +339,8 @@ export interface ExtensionContext {
 	scopedModels: readonly ScopedModel[];
 	/** Current thinking level, when provided by the session runtime. */
 	thinkingLevel?: ThinkingLevel;
+	/** jishu v0.84.2-11：读会话生效设置键（审批扩展用）。可选——非会话
+	 * 上下文（测试桩等）无设置源时省略，调用方回退默认。 */
 	/** Whether the agent is idle (not streaming) */
 	isIdle(): boolean;
 	/** Whether project-local trust is active for this context. */
@@ -1417,6 +1426,8 @@ export interface ExtensionAPI {
 	on(event: "tool_result", handler: ExtensionHandler<ToolResultEvent, ToolResultEventResult>): () => void;
 	on(event: "user_bash", handler: ExtensionHandler<UserBashEvent, UserBashEventResult>): () => void;
 	on(event: "input", handler: ExtensionHandler<InputEvent, InputEventResult>): () => void;
+	/** jishu v0.84.2-11：审批扩展等需要在事件处理器内请求 UI / 读设置。 */
+	get context(): ExtensionContext;
 
 	// =========================================================================
 	// Tool Registration
@@ -1887,7 +1898,10 @@ export interface ExtensionCommandContextActions {
  * Full runtime = state + actions.
  * Created by loader with throwing action stubs, completed by runner.initialize().
  */
-export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {}
+export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {
+	/** jishu v0.84.2-11：runner 绑定后写入（api.context 桥）。 */
+	context: ExtensionContext;
+}
 
 /** Loaded extension with all registered items. */
 export interface Extension {

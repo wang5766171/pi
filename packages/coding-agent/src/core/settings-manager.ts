@@ -22,7 +22,8 @@ const DEFAULT_COMPACTION_TOKEN_SETTINGS: Required<CompactionModelOverride> = {
 
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
-	reserveTokens?: number; // default: 16384
+	/** jishu v0.84.2-10：触发阈值按窗口百分比（1-99，default: 90），替代 reserveTokens。 */
+	thresholdPercent?: number;
 	keepRecentTokens?: number; // default: 20000
 	modelOverrides?: Record<string, CompactionModelOverride>; // exact "provider/modelId" keys
 }
@@ -142,6 +143,9 @@ export interface Settings {
 	images?: ImageSettings;
 	enabledModels?: string[]; // Model patterns for cycling (same format as --models CLI flag)
 	defaultTools?: string[]; // Initial built-in tool selection
+	/** jishu v0.84.2-11（hub v0.8.0 需求1 P-2）：逐次工具审批模式。
+	 * smart=hub 策略链（只读放行/Once/弹窗，默认）；ask_always=每次弹窗；
+	 * off=扩展直接放行不发请求。 */
 	doubleEscapeAction?: "fork" | "tree" | "none"; // Action for double-escape with empty editor (default: "tree")
 	treeFilterMode?: "default" | "no-tools" | "user-only" | "labeled-only" | "all"; // Default filter when opening /tree
 	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
@@ -856,7 +860,7 @@ export class SettingsManager {
 		this.save();
 	}
 
-	private getCompactionTokenSetting(
+private getCompactionTokenSetting(
 		field: keyof CompactionModelOverride,
 		model?: Pick<Model<string>, "provider" | "id">,
 	): number {
@@ -882,25 +886,42 @@ export class SettingsManager {
 			);
 		}
 		return override ?? ordinary ?? DEFAULT_COMPACTION_TOKEN_SETTINGS[field];
+
+	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）。 */
+	getCompactionThresholdPercent(): number {
+		const pct = this.settings.compaction?.thresholdPercent;
+		if (typeof pct !== "number" || !Number.isFinite(pct)) return 90;
+		return Math.min(99, Math.max(1, Math.round(pct)));
 	}
+
+	/** jishu v0.84.2-10：RPC 热推阈值——写全局设置并持久化（项目覆盖仍优先）。 */
+	setCompactionThresholdPercent(percent: number): void {
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.thresholdPercent = Math.min(99, Math.max(1, Math.round(percent)));
+		this.markModified("compaction", "thresholdPercent");
+		this.save();
+}
 
 	getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("reserveTokens", model);
 	}
 
-	getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
+getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("keepRecentTokens", model);
 	}
 
 	/** Resolve each token setting through model override, ordinary setting, then built-in default. */
 	getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
 		enabled: boolean;
-		reserveTokens: number;
+		/** jishu v0.84.2-10：触发阈值按窗口百分比，替代 reserveTokens 作为顶层配置入口。 */
+		thresholdPercent: number;
 		keepRecentTokens: number;
 	} {
 		return {
 			enabled: this.getCompactionEnabled(),
-			reserveTokens: this.getCompactionReserveTokens(model),
+			thresholdPercent: this.getCompactionThresholdPercent(),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 		};
 	}

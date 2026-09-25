@@ -59,8 +59,8 @@
 		"node": ">=22.19.0"
 	},
 	"dependencies": {
-		"@earendil-works/chord": "^0.87.1",
-		"@earendil-works/pi-ai": "^0.87.1"
+		"@earendil-works/chord": "0.87.1-13",
+		"@earendil-works/pi-ai": "0.87.1-13"
 	},
 	"devDependencies": {
 		"shx": "0.4.0",
