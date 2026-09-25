@@ -3,7 +3,9 @@ import { InMemorySettingsStorage, SettingsManager } from "../src/core/settings-m
 
 const model = { provider: "provider", id: "family/model" };
 const modelKey = "provider/family/model";
-const defaults = { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 };
+// jishu v0.84.2-10：顶层触发阈值用 thresholdPercent（窗口百分比），reserveTokens 不再是顶层配置；
+// modelOverrides 保留 reserveTokens/keepRecentTokens 的 token 覆盖通道并新增 thresholdPercent 覆盖。
+const defaults = { enabled: true, thresholdPercent: 90, keepRecentTokens: 20000 };
 
 // Regression coverage for #8133.
 describe("compaction model overrides", () => {
@@ -26,13 +28,13 @@ describe("compaction model overrides", () => {
 			thresholdPercent: 95,
 			keepRecentTokens: 10000,
 		});
-		expect(manager.getCompactionReserveTokens(model)).toBe(400000);
+		expect(manager.getCompactionThresholdPercent(model)).toBe(95);
 		expect(manager.getCompactionKeepRecentTokens(model)).toBe(10000);
-		expect(manager.getCompactionSettings()).toEqual({ enabled: true, reserveTokens: 8192, keepRecentTokens: 10000 });
+		expect(manager.getCompactionSettings()).toEqual({ enabled: true, thresholdPercent: 80, keepRecentTokens: 10000 });
 
 		manager.applyOverrides({ compaction: { modelOverrides: { [modelKey]: { keepRecentTokens: 30000 } } } });
 		expect(manager.getCompactionKeepRecentTokens(model)).toBe(30000);
-		expect(manager.getCompactionReserveTokens(model)).toBe(400000);
+		expect(manager.getCompactionThresholdPercent(model)).toBe(95);
 	});
 
 	it("falls back to built-in defaults for missing fields", () => {
@@ -46,13 +48,13 @@ describe("compaction model overrides", () => {
 		const manager = SettingsManager.inMemory({
 			compaction: {
 				modelOverrides: {
-					[modelKey]: { reserveTokens: 400000 },
-					"provider/*": { reserveTokens: 1 },
-					"family/model": { reserveTokens: 2 },
+					[modelKey]: { thresholdPercent: 95 },
+					"provider/*": { thresholdPercent: 20 },
+					"family/model": { thresholdPercent: 30 },
 				},
 			},
 		});
-		expect(manager.getCompactionReserveTokens(model)).toBe(400000);
+		expect(manager.getCompactionThresholdPercent(model)).toBe(95);
 		for (const other of [
 			{ provider: "other", id: model.id },
 			{ provider: model.provider, id: "other" },
@@ -67,9 +69,9 @@ describe("compaction model overrides", () => {
 		storage.withLock("global", () =>
 			JSON.stringify({
 				compaction: {
-					reserveTokens: 8192,
+					thresholdPercent: 80,
 					modelOverrides: {
-						[modelKey]: { reserveTokens: 400000, keepRecentTokens: 30000 },
+						[modelKey]: { thresholdPercent: 95, keepRecentTokens: 30000 },
 						"provider/other": { keepRecentTokens: 4096 },
 					},
 				},
@@ -77,18 +79,18 @@ describe("compaction model overrides", () => {
 		);
 		storage.withLock("project", () =>
 			JSON.stringify({
-				compaction: { reserveTokens: 1024, modelOverrides: { [modelKey]: { keepRecentTokens: 2000 } } },
+				compaction: { thresholdPercent: 70, modelOverrides: { [modelKey]: { keepRecentTokens: 2000 } } },
 			}),
 		);
 		const manager = SettingsManager.fromStorage(storage);
 		expect(manager.getCompactionSettings(model)).toEqual({
 			enabled: true,
-			reserveTokens: 400000,
+			thresholdPercent: 95,
 			keepRecentTokens: 2000,
 		});
 		expect(manager.getCompactionSettings({ provider: "provider", id: "other" })).toEqual({
 			enabled: true,
-			reserveTokens: 1024,
+			thresholdPercent: 70,
 			keepRecentTokens: 4096,
 		});
 		await manager.reload();
@@ -101,7 +103,7 @@ describe("compaction model overrides", () => {
 		const storage = new InMemorySettingsStorage();
 		storage.withLock("global", () =>
 			JSON.stringify({
-				compaction: { modelOverrides: { [modelKey]: { enabled: false, reserveTokens: 400000 } } },
+				compaction: { modelOverrides: { [modelKey]: { enabled: false, thresholdPercent: 95 } } },
 			}),
 		);
 		const manager = SettingsManager.fromStorage(storage);
@@ -109,7 +111,7 @@ describe("compaction model overrides", () => {
 		manager.setCompactionEnabled(false);
 		await manager.flush();
 		await manager.reload();
-		expect(manager.getCompactionSettings(model)).toEqual({ ...defaults, enabled: false, reserveTokens: 400000 });
+		expect(manager.getCompactionSettings(model)).toEqual({ ...defaults, enabled: false, thresholdPercent: 95 });
 	});
 
 	describe.each(["reserveTokens", "keepRecentTokens"] as const)("model override %s", (field) => {
@@ -123,7 +125,13 @@ describe("compaction model overrides", () => {
 					}),
 				);
 				const manager = SettingsManager.fromStorage(storage);
-				expect(() => manager.getCompactionSettings(model)).toThrow(
+				// jishu：reserveTokens 仅存于 override 通道，经 getCompactionReserveTokens 触发校验；
+				// keepRecentTokens 在 getCompactionSettings 主链路内。
+				const trigger =
+					field === "reserveTokens"
+						? () => manager.getCompactionReserveTokens(model)
+						: () => manager.getCompactionKeepRecentTokens(model);
+				expect(trigger).toThrow(
 					`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(value)}. Expected a non-negative safe integer.`,
 				);
 				expect(manager.getCompactionSettings()).toEqual(defaults);
@@ -134,13 +142,19 @@ describe("compaction model overrides", () => {
 		it.each([Number.NaN, Infinity, -Infinity])("reports non-finite runtime values: %s", (value) => {
 			const manager = SettingsManager.inMemory();
 			manager.applyOverrides({ compaction: { modelOverrides: { [modelKey]: { [field]: value } } } });
-			expect(() => manager.getCompactionSettings(model)).toThrow(
-				`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(value)}`,
+			const trigger =
+				field === "reserveTokens"
+					? () => manager.getCompactionReserveTokens(model)
+					: () => manager.getCompactionKeepRecentTokens(model);
+			expect(trigger).toThrow(
+					`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(value)}`,
 			);
 		});
 	});
 
-	describe.each(["reserveTokens", "keepRecentTokens"] as const)("ordinary compaction.%s", (field) => {
+	// jishu：顶层 token 字段仅 keepRecentTokens（reserveTokens 已由 thresholdPercent 取代，
+	// thresholdPercent 走钳制回退语义不抛错），普通无效值校验只覆盖 keepRecentTokens。
+	describe.each(["keepRecentTokens"] as const)("ordinary compaction.%s", (field) => {
 		it.each([null, -1, 1.5, "400000", true, {}, [], Number.MAX_SAFE_INTEGER + 1])(
 			"reports invalid values even when a valid model override exists: %j",
 			(value) => {
