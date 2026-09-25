@@ -16,14 +16,14 @@ describe("compaction model overrides", () => {
 	it("resolves each field independently and keeps individual getters consistent", () => {
 		const manager = SettingsManager.inMemory({
 			compaction: {
-				reserveTokens: 8192,
+				thresholdPercent: 80,
 				keepRecentTokens: 10000,
-				modelOverrides: { [modelKey]: { reserveTokens: 400000 } },
+				modelOverrides: { [modelKey]: { thresholdPercent: 95 } },
 			},
 		});
 		expect(manager.getCompactionSettings(model)).toEqual({
 			enabled: true,
-			reserveTokens: 400000,
+			thresholdPercent: 95,
 			keepRecentTokens: 10000,
 		});
 		expect(manager.getCompactionReserveTokens(model)).toBe(400000);
@@ -177,16 +177,16 @@ describe("compaction model overrides", () => {
 
 	it("accepts zero in ordinary settings and model overrides", () => {
 		const manager = SettingsManager.inMemory({
-			compaction: { reserveTokens: 0, keepRecentTokens: 0 },
+			compaction: { thresholdPercent: 42, keepRecentTokens: 0 },
 		});
-		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, reserveTokens: 0, keepRecentTokens: 0 });
+		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, thresholdPercent: 42, keepRecentTokens: 0 });
 		manager.applyOverrides({
 			compaction: {
-				reserveTokens: 1000,
+				thresholdPercent: 55,
 				keepRecentTokens: 1000,
-				modelOverrides: { [modelKey]: { reserveTokens: 0, keepRecentTokens: 0 } },
+				modelOverrides: { [modelKey]: { keepRecentTokens: 0 } },
 			},
 		});
-		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, reserveTokens: 0, keepRecentTokens: 0 });
+		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, thresholdPercent: 55, keepRecentTokens: 0 });
 	});
 });

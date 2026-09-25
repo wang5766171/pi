@@ -13,11 +13,14 @@ import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dis
 export interface CompactionModelOverride {
 	reserveTokens?: number;
 	keepRecentTokens?: number;
+	/** jishu：per-model 触发阈值覆盖（1-99，窗口百分比），与顶层 thresholdPercent 同语义。 */
+	thresholdPercent?: number;
 }
 
 const DEFAULT_COMPACTION_TOKEN_SETTINGS: Required<CompactionModelOverride> = {
 	reserveTokens: 16384,
 	keepRecentTokens: 20000,
+	thresholdPercent: 90,
 };
 
 export interface CompactionSettings {
@@ -861,11 +864,12 @@ export class SettingsManager {
 	}
 
 private getCompactionTokenSetting(
-		field: keyof CompactionModelOverride,
+		field: "reserveTokens" | "keepRecentTokens",
 		model?: Pick<Model<string>, "provider" | "id">,
 	): number {
 		const compaction = this.settings.compaction;
-		const ordinary = compaction?.[field];
+		// jishu：顶层 CompactionSettings 无 reserveTokens（thresholdPercent 语义），仅 keepRecentTokens 可直读。
+		const ordinary = (compaction as Partial<Record<"reserveTokens" | "keepRecentTokens", number>>)?.[field];
 		if (ordinary !== undefined && (typeof ordinary !== "number" || !Number.isSafeInteger(ordinary) || ordinary < 0)) {
 			throw new Error(
 				`Invalid compaction.${field} setting: ${String(ordinary)}. Expected a non-negative safe integer.`,
@@ -886,10 +890,15 @@ private getCompactionTokenSetting(
 			);
 		}
 		return override ?? ordinary ?? DEFAULT_COMPACTION_TOKEN_SETTINGS[field];
+	}
 
-	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）。 */
-	getCompactionThresholdPercent(): number {
-		const pct = this.settings.compaction?.thresholdPercent;
+	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）；v0.87.1 起
+	 * 支持 modelOverrides.per-model 覆盖（对齐上游 token 覆盖机制，触发线用百分比语义）。 */
+	getCompactionThresholdPercent(model?: Pick<Model<string>, "provider" | "id">): number {
+		const compaction = this.settings.compaction;
+		const modelKey = model ? `${model.provider}/${model.id}` : undefined;
+		const override = modelKey !== undefined ? compaction?.modelOverrides?.[modelKey]?.thresholdPercent : undefined;
+		const pct = override ?? compaction?.thresholdPercent;
 		if (typeof pct !== "number" || !Number.isFinite(pct)) return 90;
 		return Math.min(99, Math.max(1, Math.round(pct)));
 	}
@@ -902,7 +911,7 @@ private getCompactionTokenSetting(
 		this.globalSettings.compaction.thresholdPercent = Math.min(99, Math.max(1, Math.round(percent)));
 		this.markModified("compaction", "thresholdPercent");
 		this.save();
-}
+	}
 
 	getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("reserveTokens", model);
@@ -921,7 +930,7 @@ getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): n
 	} {
 		return {
 			enabled: this.getCompactionEnabled(),
-			thresholdPercent: this.getCompactionThresholdPercent(),
+			thresholdPercent: this.getCompactionThresholdPercent(model),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 		};
 	}

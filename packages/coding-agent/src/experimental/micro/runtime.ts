@@ -79,7 +79,7 @@ export async function openMicro(options: OpenMicroOptions = {}): Promise<OpenMic
 		const compaction = initial?.model ? settings.getCompactionSettings(initial.model) : undefined;
 		const threshold =
 			initial?.model && compaction?.enabled
-				? Math.max(0, initial.model.contextWindow - compaction.reserveTokens)
+				? Math.floor((initial.model.contextWindow * compaction.thresholdPercent) / 100)
 				: 0;
 
 		storage = await JsonlStorage.open(location.path);
@@ -321,7 +321,7 @@ export async function openMicro(options: OpenMicroOptions = {}): Promise<OpenMic
 						{
 							model: ref,
 							thinkingLevel: clampThinkingLevel(model, currentThinking),
-							threshold: compact.enabled ? Math.max(0, model.contextWindow - compact.reserveTokens) : 0,
+							threshold: compact.enabled ? Math.floor((model.contextWindow * compact.thresholdPercent) / 100) : 0,
 							keepRecent: compact.keepRecentTokens,
 						},
 						BACKGROUND_CONTEXT,
