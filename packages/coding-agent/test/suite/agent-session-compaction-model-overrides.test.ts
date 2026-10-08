@@ -176,7 +176,10 @@ describe("AgentSession compaction model overrides", () => {
 
 	it("captures model identity before awaiting summarization auth", async () => {
 		const harness = await createHarness({
-			models: [{ id: "first", contextWindow: 4000 }, { id: "second", contextWindow: 4000 }],
+			models: [
+				{ id: "first", contextWindow: 4000 },
+				{ id: "second", contextWindow: 4000 },
+			],
 			settings: {
 				compaction: {
 					modelOverrides: {

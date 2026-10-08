@@ -146,9 +146,7 @@ describe("compaction model overrides", () => {
 				field === "reserveTokens"
 					? () => manager.getCompactionReserveTokens(model)
 					: () => manager.getCompactionKeepRecentTokens(model);
-			expect(trigger).toThrow(
-					`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(value)}`,
-			);
+			expect(trigger).toThrow(`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(value)}`);
 		});
 	});
 
@@ -193,7 +191,11 @@ describe("compaction model overrides", () => {
 		const manager = SettingsManager.inMemory({
 			compaction: { thresholdPercent: 42, keepRecentTokens: 0 },
 		});
-		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, thresholdPercent: 42, keepRecentTokens: 0 });
+		expect(manager.getCompactionSettings(model)).toEqual({
+			enabled: true,
+			thresholdPercent: 42,
+			keepRecentTokens: 0,
+		});
 		manager.applyOverrides({
 			compaction: {
 				thresholdPercent: 55,
@@ -201,6 +203,10 @@ describe("compaction model overrides", () => {
 				modelOverrides: { [modelKey]: { keepRecentTokens: 0 } },
 			},
 		});
-		expect(manager.getCompactionSettings(model)).toEqual({ enabled: true, thresholdPercent: 55, keepRecentTokens: 0 });
+		expect(manager.getCompactionSettings(model)).toEqual({
+			enabled: true,
+			thresholdPercent: 55,
+			keepRecentTokens: 0,
+		});
 	});
 });

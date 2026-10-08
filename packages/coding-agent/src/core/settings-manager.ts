@@ -951,7 +951,7 @@ export class SettingsManager {
 		this.save();
 	}
 
-private getCompactionTokenSetting(
+	private getCompactionTokenSetting(
 		field: "reserveTokens" | "keepRecentTokens",
 		model?: Pick<Model<string>, "provider" | "id">,
 	): number {
@@ -1005,7 +1005,7 @@ private getCompactionTokenSetting(
 		return this.getCompactionTokenSetting("reserveTokens", model);
 	}
 
-getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
+	getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("keepRecentTokens", model);
 	}
 
