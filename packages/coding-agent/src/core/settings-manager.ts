@@ -18,16 +18,20 @@ import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dis
 export interface CompactionModelOverride {
 	reserveTokens?: number;
 	keepRecentTokens?: number;
+	/** jishu：per-model 触发阈值覆盖（1-99，窗口百分比），与顶层 thresholdPercent 同语义。 */
+	thresholdPercent?: number;
 }
 
 const DEFAULT_COMPACTION_TOKEN_SETTINGS: Required<CompactionModelOverride> = {
 	reserveTokens: 16384,
 	keepRecentTokens: 20000,
+	thresholdPercent: 90,
 };
 
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
-	reserveTokens?: number; // default: 16384
+	/** jishu v0.84.2-10：触发阈值按窗口百分比（1-99，default: 90），替代 reserveTokens。 */
+	thresholdPercent?: number;
 	keepRecentTokens?: number; // default: 20000
 	modelOverrides?: Record<string, CompactionModelOverride>; // exact "provider/modelId" keys
 }
@@ -947,12 +951,13 @@ export class SettingsManager {
 		this.save();
 	}
 
-	private getCompactionTokenSetting(
-		field: keyof CompactionModelOverride,
+private getCompactionTokenSetting(
+		field: "reserveTokens" | "keepRecentTokens",
 		model?: Pick<Model<string>, "provider" | "id">,
 	): number {
 		const compaction = this.settings.compaction;
-		const ordinary = compaction?.[field];
+		// jishu：顶层 CompactionSettings 无 reserveTokens（thresholdPercent 语义），仅 keepRecentTokens 可直读。
+		const ordinary = (compaction as Partial<Record<"reserveTokens" | "keepRecentTokens", number>>)?.[field];
 		if (ordinary !== undefined && (typeof ordinary !== "number" || !Number.isSafeInteger(ordinary) || ordinary < 0)) {
 			throw new Error(
 				`Invalid compaction.${field} setting: ${String(ordinary)}. Expected a non-negative safe integer.`,
@@ -975,23 +980,45 @@ export class SettingsManager {
 		return override ?? ordinary ?? DEFAULT_COMPACTION_TOKEN_SETTINGS[field];
 	}
 
+	/** jishu v0.84.2-10：reserveTokens → thresholdPercent（1-99 钳制，默认 90）；v0.87.1 起
+	 * 支持 modelOverrides.per-model 覆盖（对齐上游 token 覆盖机制，触发线用百分比语义）。 */
+	getCompactionThresholdPercent(model?: Pick<Model<string>, "provider" | "id">): number {
+		const compaction = this.settings.compaction;
+		const modelKey = model ? `${model.provider}/${model.id}` : undefined;
+		const override = modelKey !== undefined ? compaction?.modelOverrides?.[modelKey]?.thresholdPercent : undefined;
+		const pct = override ?? compaction?.thresholdPercent;
+		if (typeof pct !== "number" || !Number.isFinite(pct)) return 90;
+		return Math.min(99, Math.max(1, Math.round(pct)));
+	}
+
+	/** jishu v0.84.2-10：RPC 热推阈值——写全局设置并持久化（项目覆盖仍优先）。 */
+	setCompactionThresholdPercent(percent: number): void {
+		if (!this.globalSettings.compaction) {
+			this.globalSettings.compaction = {};
+		}
+		this.globalSettings.compaction.thresholdPercent = Math.min(99, Math.max(1, Math.round(percent)));
+		this.markModified("compaction", "thresholdPercent");
+		this.save();
+	}
+
 	getCompactionReserveTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("reserveTokens", model);
 	}
 
-	getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
+getCompactionKeepRecentTokens(model?: Pick<Model<string>, "provider" | "id">): number {
 		return this.getCompactionTokenSetting("keepRecentTokens", model);
 	}
 
 	/** Resolve each token setting through model override, ordinary setting, then built-in default. */
 	getCompactionSettings(model?: Pick<Model<string>, "provider" | "id">): {
 		enabled: boolean;
-		reserveTokens: number;
+		/** jishu v0.84.2-10：触发阈值按窗口百分比，替代 reserveTokens 作为顶层配置入口。 */
+		thresholdPercent: number;
 		keepRecentTokens: number;
 	} {
 		return {
 			enabled: this.getCompactionEnabled(),
-			reserveTokens: this.getCompactionReserveTokens(model),
+			thresholdPercent: this.getCompactionThresholdPercent(model),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 		};
 	}

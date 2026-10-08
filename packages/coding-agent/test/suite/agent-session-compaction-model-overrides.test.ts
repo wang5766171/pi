@@ -43,9 +43,9 @@ describe("AgentSession compaction model overrides", () => {
 				settings: {
 					compaction: {
 						enabled: path !== "manual",
-						reserveTokens: 10,
+						thresholdPercent: 99,
 						keepRecentTokens: 20000,
-						modelOverrides: { "faux/faux-1": { reserveTokens: 2000, keepRecentTokens: 150 } },
+						modelOverrides: { "faux/faux-1": { thresholdPercent: 50, keepRecentTokens: 150 } },
 					},
 				},
 				extensionFactories: [
@@ -83,7 +83,7 @@ describe("AgentSession compaction model overrides", () => {
 			expect(preparations).toHaveLength(1);
 			expect(preparations[0]?.preparation.settings).toEqual({
 				enabled: path !== "manual",
-				reserveTokens: 2000,
+				thresholdPercent: 50,
 				keepRecentTokens: 150,
 			});
 			expect(preparations[0]?.reason).toBe(
@@ -108,8 +108,8 @@ describe("AgentSession compaction model overrides", () => {
 			tools: [],
 			settings: {
 				compaction: {
-					reserveTokens: 10,
-					modelOverrides: { "faux/faux-1": { reserveTokens: 2000, keepRecentTokens: 150 } },
+					thresholdPercent: 99,
+					modelOverrides: { "faux/faux-1": { thresholdPercent: 50, keepRecentTokens: 150 } },
 				},
 			},
 		});
@@ -142,8 +142,8 @@ describe("AgentSession compaction model overrides", () => {
 			tools: [],
 			settings: {
 				compaction: {
-					reserveTokens: 10,
-					modelOverrides: { "faux/big": { reserveTokens: 8000, keepRecentTokens: 150 } },
+					thresholdPercent: 99,
+					modelOverrides: { "faux/big": { thresholdPercent: 20, keepRecentTokens: 150 } },
 				},
 			},
 			extensionFactories: [
@@ -169,19 +169,19 @@ describe("AgentSession compaction model overrides", () => {
 		await harness.session.prompt("continue on big");
 		expect(harness.eventsOfType("compaction_end")).toHaveLength(1);
 		expect(harness.eventsOfType("compaction_end")[0]?.result?.summary).toBe("big model summary");
-		expect(harness.settingsManager.getCompactionReserveTokens()).toBe(10);
+		expect(harness.settingsManager.getCompactionThresholdPercent()).toBe(99);
 		await harness.session.setModel(harness.getModel("small")!);
-		expect(harness.settingsManager.getCompactionReserveTokens(harness.session.model)).toBe(10);
+		expect(harness.settingsManager.getCompactionThresholdPercent(harness.session.model)).toBe(99);
 	});
 
 	it("captures model identity before awaiting summarization auth", async () => {
 		const harness = await createHarness({
-			models: [{ id: "first" }, { id: "second" }],
+			models: [{ id: "first", contextWindow: 4000 }, { id: "second", contextWindow: 4000 }],
 			settings: {
 				compaction: {
 					modelOverrides: {
-						"faux/first": { reserveTokens: 2000, keepRecentTokens: 150 },
-						"faux/second": { reserveTokens: 4000, keepRecentTokens: 20000 },
+						"faux/first": { thresholdPercent: 50, keepRecentTokens: 150 },
+						"faux/second": { thresholdPercent: 1, keepRecentTokens: 20000 },
 					},
 				},
 			},

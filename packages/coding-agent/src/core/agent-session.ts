@@ -3250,6 +3250,11 @@ export class AgentSession {
 		this.settingsManager.setCompactionEnabled(enabled);
 	}
 
+	/** jishu v0.84.2-10：热推压缩阈值百分比（运行中会话即时生效，1-99 钳制）。 */
+	setAutoCompactionThresholdPercent(percent: number): void {
+		this.settingsManager.setCompactionThresholdPercent(percent);
+	}
+
 	/** Whether auto-compaction is enabled */
 	get autoCompactionEnabled(): boolean {
 		return this.settingsManager.getCompactionEnabled();
@@ -3335,6 +3340,7 @@ export class AgentSession {
 
 	private _applyExtensionBindings(runner: ExtensionRunner): void {
 		runner.setUIContext(this._extensionUIContext, this._extensionMode);
+		// jishu v0.84.2-11：扩展上下文读设置（审批扩展读 toolApproval）。
 		runner.bindCommandContext(this._extensionCommandContextActions);
 
 		this._extensionErrorUnsubscriber?.();

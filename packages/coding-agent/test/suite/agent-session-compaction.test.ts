@@ -442,7 +442,7 @@ describe("AgentSession compaction characterization", () => {
 	it("compacts and resumes after a length stop below the desired output limit", async () => {
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 1000, maxTokens: 100 }],
-			settings: { compaction: { keepRecentTokens: 1, reserveTokens: 0 } },
+			settings: { compaction: { keepRecentTokens: 1, thresholdPercent: 99 } },
 			extensionFactories: [
 				(pi) => {
 					pi.on("session_before_compact", async (event) => ({
@@ -475,6 +475,8 @@ describe("AgentSession compaction characterization", () => {
 
 	// Regression coverage for #8133: model overrides must also apply between assistant turns.
 	// Regression coverage for #9740: an oversized trailing tool result must still produce a cut point.
+	// jishu v0.84.2-10：触发阈值用 thresholdPercent（窗口百分比）；modelOverrides 仅保留
+	// keepRecentTokens 的 per-model 覆盖通道（触发线无 per-model 覆盖）。
 	it.each([false, true])(
 		"compacts after an oversized tool result in the same run (model override: %s)",
 		async (modelOverride) => {
@@ -494,11 +496,11 @@ describe("AgentSession compaction characterization", () => {
 					compaction: modelOverride
 						? {
 								enabled: true,
-								reserveTokens: 0,
+								thresholdPercent: 99,
 								keepRecentTokens: 20000,
-								modelOverrides: { "faux/faux-1": { reserveTokens: 400, keepRecentTokens: 1750 } },
+								modelOverrides: { "faux/faux-1": { keepRecentTokens: 1750 } },
 							}
-						: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 },
+						: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 },
 				},
 				tools: [largeTool],
 				extensionFactories: [
@@ -537,7 +539,11 @@ describe("AgentSession compaction characterization", () => {
 			await harness.session.prompt("run the large tool");
 
 			expect(order.slice(0, 2)).toEqual(["compaction", "provider"]);
-			expect(observedSettings[0]).toEqual({ enabled: true, reserveTokens: 400, keepRecentTokens: 1750 });
+			expect(observedSettings[0]).toEqual(
+				modelOverride
+					? { enabled: true, thresholdPercent: 99, keepRecentTokens: 1750 }
+					: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 },
+			);
 			expect(harness.eventsOfType("agent_start")).toHaveLength(agentStartsBefore + 1);
 			expect(harness.eventsOfType("compaction_start").at(-1)).toEqual({
 				type: "compaction_start",
@@ -570,7 +576,7 @@ describe("AgentSession compaction characterization", () => {
 		});
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 2600, maxTokens: 100 }],
-			settings: { compaction: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 } },
 			tools: [largeTool],
 			extensionFactories: [
 				(pi) => {
@@ -628,7 +634,7 @@ describe("AgentSession compaction characterization", () => {
 		};
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 2600, maxTokens: 100 }],
-			settings: { compaction: { enabled: true, reserveTokens: 400, keepRecentTokens: 1750 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 85, keepRecentTokens: 1750 } },
 			tools: [terminatingTool],
 			extensionFactories: [
 				(pi) => {
@@ -675,7 +681,7 @@ describe("AgentSession compaction characterization", () => {
 	it("stops after one compact-and-retry when a second response is also truncated", async () => {
 		const harness = await createHarness({
 			models: [{ id: "faux-1", contextWindow: 1_000_000, maxTokens: 100 }],
-			settings: { compaction: { keepRecentTokens: 1, reserveTokens: 0 } },
+			settings: { compaction: { keepRecentTokens: 1, thresholdPercent: 99 } },
 			extensionFactories: [
 				(pi) => {
 					pi.on("session_before_compact", async (event) => ({
@@ -830,7 +836,7 @@ describe("AgentSession compaction characterization", () => {
 
 	it("compacts successful overflow responses without retrying", async () => {
 		const harness = await createHarness({
-			settings: { compaction: { enabled: true, keepRecentTokens: 1, reserveTokens: 0 } },
+			settings: { compaction: { enabled: true, keepRecentTokens: 1, thresholdPercent: 99 } },
 			models: [{ id: "faux-1", contextWindow: 1, maxTokens: 100 }],
 			extensionFactories: [
 				(pi) => {
@@ -993,7 +999,7 @@ describe("AgentSession compaction characterization", () => {
 
 	it("does not trigger threshold compaction below the threshold or when disabled", async () => {
 		const belowThresholdHarness = await createHarness({
-			settings: { compaction: { enabled: true, reserveTokens: 1000 } },
+			settings: { compaction: { enabled: true, thresholdPercent: 99 } },
 			models: [{ id: "faux-1", contextWindow: 200_000 }],
 		});
 		harnesses.push(belowThresholdHarness);
