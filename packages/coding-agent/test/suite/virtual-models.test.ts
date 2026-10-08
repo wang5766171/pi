@@ -392,6 +392,9 @@ describe("AgentSession virtual models", () => {
 		expect(result.summary).toContain("summary");
 		expect(reasons()).toEqual(["user", "user", "direct"]);
 		// The router's thinking level applies, and the output budget respects the large model's 4000 tokens.
-		expect(summaries).toEqual(["large:low:4000", "large:low:4000"]);
+		// jishu 换算：fork 语义 reserveTokens = window(50000) × (100 − 90)% = 5000，
+		// 主摘要预算 min(0.8×5000, maxTokens 4000)=4000，turn prefix 预算 min(0.5×5000, 4000)=2500
+		// （上游 reserveTokens 默认 16384 绝对值，两次均为 4000）。
+		expect(summaries).toEqual(["large:low:4000", "large:low:2500"]);
 	});
 });
