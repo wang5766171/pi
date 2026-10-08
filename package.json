@@ -70,6 +70,10 @@
 	},
 	"version": "1.1.0-13",
 	"overrides": {
-		"protobufjs": "7.6.6"
+		"protobufjs": "7.6.6",
+		"openai": "7.19.0"
+	},
+	"dependencies": {
+		"openai": "7.19.0"
 	}
 }
