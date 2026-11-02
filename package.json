@@ -54,7 +54,7 @@
 		"release:minor": "node scripts/release.mjs minor",
 		"release:major": "node scripts/release.mjs major",
 		"release:fix-links": "node scripts/release-notes.mjs fix-github-releases",
-		"prepare": "husky"
+		"prepare": "node -e \"try { require('child_process').execSync('husky', {stdio: 'ignore'}) } catch (e) {}\""
 	},
 	"devDependencies": {
 		"@anthropic-ai/sandbox-runtime": "0.0.26",
@@ -71,8 +71,12 @@
 	"engines": {
 		"node": ">=22.19.0"
 	},
-	"version": "0.0.3",
+	"version": "1.4.0-13",
 	"overrides": {
-		"protobufjs": "7.6.6"
+		"protobufjs": "7.6.6",
+		"openai": "7.19.0"
+	},
+	"dependencies": {
+		"openai": "7.19.0"
 	}
 }

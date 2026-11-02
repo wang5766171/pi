@@ -13,12 +13,30 @@ function timeoutSetting(options?: TSchemaOptions) {
 const CompactionModelOverrideSchema = Type.Object({
 	reserveTokens: Type.Optional(nonNegativeSafeInteger()),
 	keepRecentTokens: Type.Optional(nonNegativeSafeInteger()),
+	/** jishu（fork 自 v0.84.2-10）：per-model 触发阈值覆盖（1-99，窗口百分比），
+	 * 与顶层 thresholdPercent 同语义——reserveTokens 仅控触发时机的百分比替代。 */
+	thresholdPercent: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			maximum: 99,
+			default: SETTINGS_DEFAULTS.compaction.thresholdPercent,
+		}),
+	),
 });
 
 const CompactionSettingsSchema = Type.Object({
 	enabled: Type.Optional(Type.Boolean({ default: SETTINGS_DEFAULTS.compaction.enabled })),
 	reserveTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.reserveTokens })),
 	keepRecentTokens: Type.Optional(nonNegativeSafeInteger({ default: SETTINGS_DEFAULTS.compaction.keepRecentTokens })),
+	/** jishu（fork 自 v0.84.2-10）：触发阈值按窗口百分比（1-99，default 90），
+	 * 替代 reserveTokens 的绝对值触发语义。 */
+	thresholdPercent: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			maximum: 99,
+			default: SETTINGS_DEFAULTS.compaction.thresholdPercent,
+		}),
+	),
 	modelOverrides: Type.Optional(
 		Type.Record(Type.String(), CompactionModelOverrideSchema, {
 			description: 'Per-model overrides keyed by exact "provider/modelId" strings.',

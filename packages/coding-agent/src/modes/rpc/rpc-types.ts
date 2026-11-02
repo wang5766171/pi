@@ -45,7 +45,9 @@ export type RpcCommand =
 
 	// Compaction
 	| { id?: string; type: "compact"; customInstructions?: string }
-	| { id?: string; type: "set_auto_compaction"; enabled: boolean }
+	// jishu v0.84.2-10：enabled/thresholdPercent 均可选，只推送出现的字段
+	// （Hub 保存配置后热推阈值时可能不带 enabled，反之亦然）。
+	| { id?: string; type: "set_auto_compaction"; enabled?: boolean; thresholdPercent?: number }
 
 	// Retry
 	| { id?: string; type: "set_auto_retry"; enabled: boolean }
@@ -251,6 +253,14 @@ export type RpcResponse =
 /** Emitted when an extension needs user input */
 export type RpcExtensionUIRequest =
 	| { type: "extension_ui_request"; id: string; method: "select"; title: string; options: string[]; timeout?: number }
+	| {
+			type: "extension_ui_request";
+			id: string;
+			method: "multiSelect";
+			title: string;
+			options: string[];
+			timeout?: number;
+	  }
 	| { type: "extension_ui_request"; id: string; method: "confirm"; title: string; message: string; timeout?: number }
 	| {
 			type: "extension_ui_request";

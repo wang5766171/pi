@@ -119,13 +119,19 @@ export interface CompactionResult<T = unknown> {
 
 export interface CompactionSettings {
 	enabled: boolean;
-	reserveTokens: number;
+	/** jishu v0.84.2-10：触发阈值改按上下文窗口百分比（默认 90%；
+	 * v1.4.0-13 起可选——上游测试/调用可不传，判定处回退默认）。 */
+	thresholdPercent?: number;
 	keepRecentTokens: number;
+	/** jishu v1.4.0-13（合并适配）：上游 v1.4.0 仍以 reserveTokens 为默认触发
+	 * 语义（settings 层与测试传入）；fork 触发判定 thresholdPercent 优先，
+	 * 本字段仅为类型兼容（无独立行为）。 */
+	reserveTokens?: number;
 }
 
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 	enabled: true,
-	reserveTokens: 16384,
+	thresholdPercent: 90,
 	keepRecentTokens: 20000,
 };
 
@@ -266,7 +272,11 @@ export function estimateProjectedContextTokens(
  */
 export function shouldCompact(contextTokens: number, contextWindow: number, settings: CompactionSettings): boolean {
 	if (!settings.enabled) return false;
-	return contextTokens > contextWindow - settings.reserveTokens;
+	// jishu v0.84.2-10：绝对 reserve 值在 128k～1M 窗口档位间含义悬殊，改为
+	// 窗口百分比阈值；窗口未知（0）时不自动压缩。
+	if (contextWindow <= 0) return false;
+	// jishu：thresholdPercent 可选（上游兼容），未传时回退默认 90%。
+	return contextTokens > (contextWindow * (settings.thresholdPercent ?? 90)) / 100;
 }
 
 // ============================================================================
@@ -972,6 +982,12 @@ export async function compact(
 		previousSummary,
 		fileOps,
 	} = preparation;
+
+	// jishu v1.4.0-13（合并适配）：原「摘要预算随阈值换算」（窗口 ×
+	// (100−threshold%)）随上游 v1.4.0 语义退役——摘要请求不再以
+	// reserveTokens/maxTokens 封顶（改用模型输出上限，上游 #9512），预算
+	// 概念消失；触发语义仍由 shouldCompact 的 thresholdPercent（窗口
+	// 百分比）单独承担。
 
 	// Generate summaries and merge into one
 	let summary: string;

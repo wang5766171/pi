@@ -150,7 +150,10 @@ for (const [pkgDir, budgets] of Object.entries(BUDGETS)) {
 				failures += 1;
 				continue;
 			}
-			const graph = [...walk(source)].map((file) => relative(ROOT, file));
+			// jishu (fork, v1.4.0-13): normalize to forward slashes so budget `allow`
+			// suffix matching (and console output) works on Windows, where
+			// path.relative returns backslash separators.
+			const graph = [...walk(source)].map((file) => relative(ROOT, file).split("\\").join("/"));
 			if (graph.length > budget.maxFiles) {
 				console.error(
 					`${pkgDir} export "${name}" reaches ${graph.length} files, budget ${budget.maxFiles}\n` +

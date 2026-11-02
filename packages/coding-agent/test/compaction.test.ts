@@ -272,21 +272,26 @@ describe("estimateContextTokens", () => {
 });
 
 describe("shouldCompact", () => {
-	it("should return true when context exceeds threshold", () => {
+	it("should return true when context exceeds window threshold percent (jishu v0.84.2-10)", () => {
 		const settings: CompactionSettings = {
 			enabled: true,
-			reserveTokens: 10000,
+			thresholdPercent: 90,
 			keepRecentTokens: 20000,
 		};
 
 		expect(shouldCompact(95000, 100000, settings)).toBe(true);
 		expect(shouldCompact(89000, 100000, settings)).toBe(false);
+		// 阈值随窗口缩放：90% × 200k = 180k。
+		expect(shouldCompact(181000, 200000, settings)).toBe(true);
+		expect(shouldCompact(179000, 200000, settings)).toBe(false);
+		// 窗口未知（0）时不自动压缩。
+		expect(shouldCompact(95000, 0, settings)).toBe(false);
 	});
 
 	it("should return false when disabled", () => {
 		const settings: CompactionSettings = {
 			enabled: false,
-			reserveTokens: 10000,
+			thresholdPercent: 90,
 			keepRecentTokens: 20000,
 		};
 

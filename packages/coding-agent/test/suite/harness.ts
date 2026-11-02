@@ -75,6 +75,7 @@ export function getToolResult(harness: Harness, toolName: string): ToolResultMes
 export function createTestUiContext(overrides: Partial<ExtensionUIContext> = {}): ExtensionUIContext {
 	return {
 		select: async () => undefined,
+		multiSelect: async () => undefined,
 		confirm: async () => false,
 		input: async () => undefined,
 		notify: () => {},

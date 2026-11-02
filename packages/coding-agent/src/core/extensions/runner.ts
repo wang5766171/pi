@@ -332,6 +332,7 @@ const noOpUIContext: ExtensionUIContext = {
 	select: async () => undefined,
 	confirm: async () => false,
 	input: async () => undefined,
+	multiSelect: async () => undefined,
 	notify: () => {},
 	onTerminalInput: () => () => {},
 	setStatus: () => {},
@@ -568,6 +569,8 @@ export class ExtensionRunner {
 		this.switchSessionHandler = async () => ({ cancelled: false });
 		this.reloadHandler = async () => {};
 	}
+
+	/** jishu v0.84.2-11：注入设置读取（agent-session 构造时）。 */
 
 	setUIContext(uiContext?: ExtensionUIContext, mode: ExtensionMode = "print"): void {
 		this.uiContext = uiContext ? this.wrapUIPromptContext(uiContext) : noOpUIContext;
@@ -885,7 +888,7 @@ export class ExtensionRunner {
 		const runner = this;
 		const getModel = this.getModel;
 		const getScopedModels = this.getScopedModels;
-		return {
+		const ctx: ExtensionContext = {
 			get ui() {
 				runner.assertActive();
 				return runner.uiContext;
@@ -922,6 +925,8 @@ export class ExtensionRunner {
 				runner.assertActive();
 				return runner.runtime.getThinkingLevel();
 			},
+
+			// （占位以兼容可选签名——runner 始终提供实现）
 			isIdle: () => {
 				runner.assertActive();
 				return runner.isIdleFn();
@@ -959,6 +964,8 @@ export class ExtensionRunner {
 				return runner.getSystemPromptFn();
 			},
 		};
+		this.runtime.context = ctx;
+		return ctx;
 	}
 
 	/**
