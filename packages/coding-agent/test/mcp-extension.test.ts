@@ -121,7 +121,7 @@ describe("MCP config", () => {
 	it("reads and edits mcp.json files that start with a UTF-8 BOM", () => {
 		const paths = setup({}, {});
 		const global = join(paths.agentDir, "mcp.json");
-		const project = join(paths.cwd, ".pi", "mcp.json");
+		const project = join(paths.cwd, CONFIG_DIR_NAME, "mcp.json");
 		writeFileSync(global, '\uFEFF{"mcpServers":{"demo":{"command":"echo","enabled":false}}}\n');
 		writeFileSync(project, '\uFEFF{"mcpServers":{"local":{"command":"local-cmd"}}}\n');
 
