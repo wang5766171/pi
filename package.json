@@ -71,7 +71,7 @@
 	"engines": {
 		"node": ">=22.19.0"
 	},
-	"version": "1.4.0-13",
+	"version": "1.4.0-14",
 	"overrides": {
 		"protobufjs": "7.6.6",
 		"openai": "7.19.0"
