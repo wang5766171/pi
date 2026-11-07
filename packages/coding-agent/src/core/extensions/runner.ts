@@ -570,8 +570,6 @@ export class ExtensionRunner {
 		this.reloadHandler = async () => {};
 	}
 
-	/** jishu v0.84.2-11：注入设置读取（agent-session 构造时）。 */
-
 	setUIContext(uiContext?: ExtensionUIContext, mode: ExtensionMode = "print"): void {
 		this.uiContext = uiContext ? this.wrapUIPromptContext(uiContext) : noOpUIContext;
 		this.mode = mode;
@@ -964,7 +962,6 @@ export class ExtensionRunner {
 				return runner.getSystemPromptFn();
 			},
 		};
-		this.runtime.context = ctx;
 		return ctx;
 	}
 
