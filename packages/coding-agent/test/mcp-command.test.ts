@@ -2,8 +2,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ProjectTrustStore } from "../src/core/trust-manager.ts";
 import { APP_NAME, CONFIG_DIR_NAME } from "../src/config.ts";
+import { ProjectTrustStore } from "../src/core/trust-manager.ts";
 import { runMcpCommand } from "../src/extensions/mcp/cli.ts";
 
 const FIXTURE = resolve(import.meta.dirname, "../../mcp/test/fixtures/stdio-server.mjs");
@@ -47,9 +47,7 @@ describe("pi mcp", () => {
 		// `spawn <cmd> ENOENT`，Windows 下 spawn 成功启动 cmd.exe 再由 shell
 		// 报「不是内部或外部命令」且经 MCP 层表现为 "MCP connection closed"。
 		// 断言收敛到公共前缀（状态行+命令名），错误详情不再逐字比对。
-		expect(output).toContain(
-			"broken: failed (codemode, global)\n  pi-test-missing-mcp-server",
-		);
+		expect(output).toContain("broken: failed (codemode, global)\n  pi-test-missing-mcp-server");
 		expect(output).toContain("parked: disabled (codemode, global)");
 		expect(output).toContain("config error: ");
 		expect(output).toContain('server "bad" needs either "command"');
