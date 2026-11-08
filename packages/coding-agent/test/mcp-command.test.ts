@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProjectTrustStore } from "../src/core/trust-manager.ts";
+import { APP_NAME, CONFIG_DIR_NAME } from "../src/config.ts";
 import { runMcpCommand } from "../src/extensions/mcp/cli.ts";
 
 const FIXTURE = resolve(import.meta.dirname, "../../mcp/test/fixtures/stdio-server.mjs");
@@ -42,8 +43,12 @@ describe("pi mcp", () => {
 		expect(exitCode).toBe(1);
 		expect(output).toContain("fixture: connected, 1 tool (codemode, global)\n");
 		expect(output).toContain("  tools: echo");
+		// jishu (fork, v1.5.0-15): spawn 失败的错误文案随平台而异——Unix 报
+		// `spawn <cmd> ENOENT`，Windows 下 spawn 成功启动 cmd.exe 再由 shell
+		// 报「不是内部或外部命令」且经 MCP 层表现为 "MCP connection closed"。
+		// 断言收敛到公共前缀（状态行+命令名），错误详情不再逐字比对。
 		expect(output).toContain(
-			"broken: failed (codemode, global)\n  pi-test-missing-mcp-server\n  spawn pi-test-missing-mcp-server ENOENT",
+			"broken: failed (codemode, global)\n  pi-test-missing-mcp-server",
 		);
 		expect(output).toContain("parked: disabled (codemode, global)");
 		expect(output).toContain("config error: ");
@@ -167,7 +172,7 @@ describe("pi mcp", () => {
 			undefined,
 			agentDir,
 		);
-		expect(oauth.output).toContain("If it requires sign-in: pi mcp login sentry");
+		expect(oauth.output).toContain(`If it requires sign-in: ${APP_NAME} mcp login sentry`);
 		expect(readConfig(join(agentDir, "mcp.json")).mcpServers).toMatchObject({
 			sentry: { url: "https://mcp.sentry.dev/mcp", oauth: { clientId: "pi", clientName: "Claude Code" } },
 		});
@@ -204,7 +209,7 @@ describe("pi mcp", () => {
 	it("adds and removes project servers", async () => {
 		const added = await run(["add", "-l", "local", "--", "node", "server.js"], undefined);
 		expect(added.output).toContain("The project is not trusted");
-		const projectConfig = join(added.agentDir, ".pi", "mcp.json");
+		const projectConfig = join(added.agentDir, CONFIG_DIR_NAME, "mcp.json");
 		expect(readConfig(projectConfig)).toEqual({ mcpServers: { local: { command: "node", args: ["server.js"] } } });
 
 		const wrongScope = await run(["remove", "local"], undefined, added.agentDir);

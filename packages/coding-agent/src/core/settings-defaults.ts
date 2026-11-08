@@ -10,6 +10,8 @@ export const SETTINGS_DEFAULTS = {
 		enabled: true,
 		reserveTokens: 16384,
 		keepRecentTokens: 20000,
+		// jishu（fork 自 v0.84.2-10）：触发阈值窗口百分比默认 90。
+		thresholdPercent: 90,
 	},
 	branchSummary: {
 		reserveTokens: 16384,

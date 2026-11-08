@@ -137,7 +137,7 @@ describe("generateSummary reasoning options", () => {
 			tokensBefore: 100,
 			previousSummary: "previous checkpoint",
 			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
-			settings: { enabled: true, reserveTokens: 2000, keepRecentTokens: 20 },
+			settings: { enabled: true, thresholdPercent: 99, keepRecentTokens: 20 },
 		};
 
 		const result = await compact(preparation, createModel(false), "test-key");
@@ -188,7 +188,7 @@ describe("generateSummary reasoning options", () => {
 			isSplitTurn: true,
 			tokensBefore: 100,
 			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
-			settings: { enabled: true, reserveTokens: 2000, keepRecentTokens: 20 },
+			settings: { enabled: true, thresholdPercent: 99, keepRecentTokens: 20 },
 		};
 
 		await expect(compact(preparation, createModel(false), "test-key")).rejects.toThrow(
@@ -221,7 +221,7 @@ describe("generateSummary reasoning options", () => {
 			isSplitTurn: true,
 			tokensBefore: 100,
 			fileOps: { read: new Set(), written: new Set(), edited: new Set() },
-			settings: { enabled: true, reserveTokens: 2000, keepRecentTokens: 20 },
+			settings: { enabled: true, thresholdPercent: 99, keepRecentTokens: 20 },
 		};
 
 		await expect(compact(preparation, createModel(false), "test-key")).rejects.toThrow(
